@@ -1,0 +1,117 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+;; Abstract type representing type construction.
+(deftype (Constructor a t)
+    (App [a t]))
+
+;; Projections/injections to and from types to constructor abstractions.
+(definterface constructor (Fn [t] (Constructor a b)))
+(definterface construct (Fn [(Constructor a b)] t))
+
+(defmodule Kinds 
+  (doc define-brands
+    "Registers brands for type constructors.
+
+     Brands are opaque representations of type constructors, their inhabitants
+     are the constructors of the type used to generate the brand, i.e.
+
+       <type>Brand <ConstructorA> <ConstructorB>
+
+     For example, the type (deftype (Maybe a) (Just [a]) (Nothing [])) generates the
+     brand:
+       
+       (deftype MaybeBrand Just Nothing)
+
+     Brands enable us to ensure applications of construct and constructor
+     reamain *unique* and well-typed.")
+  (defndynamic define-brands [t constructors acc]
+    (let [brand (Symbol.join [t 'Brand])]
+    (if (= 0 (length constructors))
+        (append (list 'deftype brand) acc)
+        (let [constructor (car (car constructors))]
+          (Kinds.define-brands t (cdr constructors)
+                        (cons-last constructor acc))))))
+
+  (doc define-constructor
+    "Defines the constructor injection for a given type constructor.
+
+     Given a type that's polymorphic in its argument, returns a Constructor that
+     carries the argument type, as well as a unique brand indentifying the type
+     constructor.
+
+     For exmaple, (constructor (Maybe.Just 2)) will generate a Constructor of
+     the type (Constructor Int MaybeBrand), of the value (Constructor.App 2
+     (MaybeBrand.Just))")
+  (defndynamic define-constructor [t constructors acc]
+  (let [fn-form (list 'defn 'constructor (array 't))]
+    (if (= 0 (length constructors))
+        (list 'defmodule t (cons-last acc fn-form))
+        (Kinds.define-constructor t (cdr constructors)
+          (let [fst (car constructors)
+                constructor (car fst)
+                prefixed-constr (list (Symbol.prefix t constructor))
+                brand (list (Symbol.prefix (Symbol.join [t 'Brand]) constructor))]
+            (if (= 0 (length (cadr fst)))
+              (cons-last (list 'Constructor.App '(zero) brand)
+                (cons-last prefixed-constr acc))
+              (let [var (car (cadr fst))]
+                (cons-last (list 'Constructor.App var brand)
+                  (cons-last (cons-last var prefixed-constr) acc)))))))))
+
+  (doc define-construct
+    "Defines the construct projection for a given type constructor.
+
+    Given a branded constructor abstraction for a type, construct will assemble and
+    return the corresponding type. For example, given a constructor of type
+    (Constructor Int MaybeBrand) with a value of (Constructor.App 2
+    (MaybeBrand.Just)) yields the type (Maybe Int) of value (Maybe.Just 2).
+
+    Brands are non-lossy in their inhabitants, e.g. if the Constructor value
+    were instead (Constructor.App 2 (MaybeBrand.Nothing)) it would generate the
+    type (Maybe Int) of value (Maybe.Nothing)")
+  (defndynamic define-construct [t constructors acc]
+    (let [fn-form (list 'defn 'construct (array 'c))
+          unary (list 'Constructor.App 'x 'b)
+          matcher (cons-last unary (list 'match 'c))]
+      (if (= 0 (length constructors))
+          (let [inhabited-branch (append matcher (list acc))]
+            (list 'defmodule t (cons-last inhabited-branch fn-form)))
+          (let [fst (car constructors)
+                constructor (car fst)
+                prefixed-constructor (list (Symbol.prefix t constructor))
+                brand (list (Symbol.prefix (Symbol.join [t 'Brand])
+                constructor))]
+              (if (= 0 (length (cadr fst)))
+                  (Kinds.define-construct t (cdr constructors)
+                    (cons-last prefixed-constructor (cons-last brand acc)))
+                  (Kinds.define-construct t (cdr constructors) 
+                    (cons-last (cons-last 'x prefixed-constructor)
+                             (cons-last brand acc))))))))
+
+  (doc kinded 
+    "The kinded macro designates a type as supporting higher-kinded use (i.e. as
+    a type that takes an argument and can be used as a polymorphic constructor
+    in type signatures such as a -> f a.
+
+    It generates unique brands for the type, as well as constructor and
+    construct functions.")
+  (defmacro kinded [t]
+    (let [constructors (members t)]
+      (list 'do
+        (Kinds.define-brands t constructors (list))
+        (Kinds.define-constructor t constructors (list 'match 't))
+        (Kinds.define-construct t constructors (list 'match 'b)))))
+)
+
