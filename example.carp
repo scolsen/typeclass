@@ -1,0 +1,57 @@
+(load "functor.carp")
+
+(deftype (Box a) (Of [a]) (Empty []))
+
+(defn plus-one [x] (+ 1 x))
+
+(Functor.instance Maybe false)
+(Functor.instance Box true)
+
+;; Example implementation of fmap.
+(defmodule Maybe 
+  ;; Since we didn't derive an implementation of fmap for Maybe, we have to write one.
+  ;; When writing implementations of higher-kinded functions, you'll need to
+  ;; write against the type's generated **branded constructor**.
+  ;; 
+  ;; Branded constructors are always comprised of a type inhabitant, which is
+  ;; the argument value to the type, and a unique typebrand--the members of the
+  ;; type brand correspond to the constructors for that type.
+  ;;
+  ;; Here defining the implementation explicitly allows us to avoid an
+  ;; unnecessary function execution in the case that the brand designates Maybe's
+  ;; Nothing constructor, which takes no arguments.
+  (defn fmap [f maybe-constructor] 
+    (match maybe-constructor
+      (Constructor.App x b) 
+        (match b
+          (MaybeBrand.Just) (Constructor.App (~f x) (MaybeBrand.Just))
+          _ (Constructor.App x (MaybeBrand.Nothing)))))
+)
+
+;; Now that we have two legitimate functor instances, we can use *generic* Functor
+;; functions to operate on our types
+(fmap &plus-one (Maybe.functor (Maybe.Just 4)))
+;; => (App 5 (Just))
+
+;; Types are preserved, a Type's functor instance will only successfully
+;; construct a branded constructor for its type.
+;; For example, 
+;;
+;; (fmap &plus-one (Box.functor (Maybe.Just 4)))
+;; Will spit out the obvious type error that Box.functor expects a Box type, not
+;; a Maybe.
+
+;; This mechanism let's us define other functions in terms of the generic fmap,
+;; which is *only* implemented against branded, that is, higher-kinded, types.
+;; For instance, Functor.replace (aka <$) is defined in the usual way.
+(Box.construct (Functor.replace \a (Box.functor (Box.Of 3))))
+;; => (Of 4)
+
+;; Since we always need to run projections and injections, to convert to and
+;; from typeclass instances, threading macros come in handy:
+(==> (Box.Of 3)
+     (Box.constructor)
+     (fmap &plus-one)
+     (Box.construct))
+;; => (Of 4)
+
