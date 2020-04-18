@@ -1,0 +1,58 @@
+(load "higher-kinds.carp")
+
+(definterface fmap (Fn [(Ref (Fn [a] b)) (Constructor a t)] (Constructor b t)))
+
+;; Functor 
+;; Instances must implement fmap at minimum.
+(defmodule Functor
+
+  (doc instance 
+    "Defines a functor 'instance' for a type `t`.
+
+     Types must define the `fmap` function against their branded constructors.")
+  ;; TODO: After the new evaluator is merged, we should be able to call the
+  ;; kinded macro directly.
+  (defmacro instance [t derive?]
+    (let [prefixed (Symbol.prefix t 'fmap)
+          constructors (members t)]
+      (list 'do 
+        (Kinds.define-brands t constructors (list))
+        (if derive?
+          (Functor.derive t (members t) (list 'match 'b))
+          ())
+        (Kinds.define-constructor t constructors (list 'match 't))
+        (Kinds.define-construct t constructors (list 'match 'b))
+        (list 'defmodule t (list 'defn 'functor (array 'm)
+          (list (Symbol.prefix t 'constructor) 'm))))))
+
+ (doc derive 
+   "Dervie an fmap implementation for the given type.
+
+    Derive will produce the 'obvious' variant of the function in terms of your
+    branded type constructor.
+
+    Concretely, it defines roughly, the following function:
+
+    (fn [f x] (match x (Constructor a b) (match b (Brand.One) (Constructor (f x)
+    Brand.One) (Brand.Two) ...))).
+
+    If you need a more sophisticated implementation, you can define fmap
+    directly according to the fmap interface.")
+ (defndynamic derive [t brands acc]
+   (if (= 0 (length brands))
+   (list 'defmodule t
+     (list 'defn 'fmap (array 'f 'c)
+       (list 'match 'c (list 'Constructor.App 'x 'b)
+         acc)))
+   (let [constructor (Symbol.prefix (Symbol.join [t 'Brand]) (car (car brands)))]
+   (Functor.derive t (cdr brands) (cons-last (list 'Constructor.App (list (list 'deref 'f) 'x) (list constructor))
+   (cons-last (list constructor) acc))))))
+
+ (doc replace 
+   "Replaces the inhabitants of a Functor with a constant value `x`.
+
+   Analogous to <$ in Haskell.")
+ (defn replace [x c]
+   (fmap &(const x) c))
+)
+
