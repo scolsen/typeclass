@@ -33,6 +33,13 @@
         (if derive?
           (Functor.derive t (members t) (list 'match 'b))
           ())
+        (list 'when (list 'not (list 'defined? (Symbol.prefix t 'fmap)))
+                  (list 'macro-error
+                    (Dynamic.String.join ["Type " (str t)
+                    " was declared as a functor instance but does"
+                    " not implement fmap. Use Functor.derive to automatically"
+                    " derive an implmentation for the type, or define a custom"
+                    " implementation."])))
         (Kinds.define-constructor t constructors (list 'match 't))
         (Kinds.define-construct t constructors (list 'match 'b))
         (list 'defmodule t (list 'defn 'functor (array 'm)
