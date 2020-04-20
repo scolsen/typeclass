@@ -147,3 +147,5 @@
         (Kinds.mark-kind t))))
 )
 
+;; Typeclass definitions
+(load "typeclasses/functor.carp")
