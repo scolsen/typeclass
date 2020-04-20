@@ -25,7 +25,9 @@ arguments. Here's a quick example of the library in action:
 
 (deftype (Box a) (Of [a]) (Empty []))
 
-(Functor.instance Box true)
+(Kinds.kind Box)
+(Functor.derive-fmap Box)
+(Functor.instance Box)
 
 (Box.construct (fmap &add-one (Box.functor (Box.of 2))))
 ;; => (Box.Of 3)
@@ -39,6 +41,8 @@ arguments. Here's a quick example of the library in action:
 ;; We can also handwrite custome implementations wherever need, but not against
 ;; types you might expect.
 
+(Kinds.kind Maybe)
+(Functor.derive-fmap Maybe)
 (Functor.instance Maybe)
 (defmodule Maybe
   (defn fmap [f maybe-constructor] 

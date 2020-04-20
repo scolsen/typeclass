@@ -11,14 +11,19 @@
 ;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ;;  See the License for the specific language governing permissions and
 ;;  limitations under the License.
-(load "functor.carp")
+(load "../higher-kinds.carp")
 
 (deftype (Box a) (Of [a]) (Empty []))
 
 (defn plus-one [x] (+ 1 x))
 
-(Functor.instance Maybe false)
-(Functor.instance Box true)
+;; Declare Maybe and Box as kinds.
+(eval (Kinds.kind Maybe))
+(eval (Kinds.kind Box))
+
+;; Derive fmap for Box, and declare it as an instance of Functor.
+(eval (Functor.derive-fmap Box))
+(eval (Functor.instance Box))
 
 ;; Example implementation of fmap.
 (defmodule Maybe 
@@ -41,9 +46,13 @@
           _ (Constructor.App x (MaybeBrand.Nothing)))))
 )
 
+;; After implementing fmap for Mayb explicitly, declare it as an instance of
+;; Functor.
+(eval (Functor.instance Maybe))
+
 ;; Now that we have two legitimate functor instances, we can use *generic* Functor
 ;; functions to operate on our types
-(fmap &plus-one (Maybe.functor (Maybe.Just 4)))
+(Maybe.fmap &plus-one (Maybe.functor (Maybe.Just 4)))
 ;; => (App 5 (Just))
 
 ;; Types are preserved, a Type's functor instance will only successfully
@@ -62,9 +71,9 @@
 
 ;; Since we always need to run projections and injections, to convert to and
 ;; from typeclass instances, threading macros come in handy:
-(==> (Box.Of 3)
+(eval (==> (Box.Of 3)
      (Box.constructor)
      (fmap &plus-one)
-     (Box.construct))
+     (Box.construct)))
 ;; => (Of 4)
 
