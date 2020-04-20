@@ -110,13 +110,12 @@
     - a construct function
 
     The `Kinds.kind` macro generates the necessary definitions for a given type.")
-  (defmacro kind? [t]
+  (defndynamic kind? [name]
     ;; Bit of a hack. Metadata is initialized to ()
     ;; Thus, all bindings have "kind" = () as default,
     ;; so we can't just treat it as a boolean value since ()
     ;; is not a boolean. So, we convert that to a false using list?.
-    (let [val (meta t "kind")]
-      (list 'not (list 'list? val))))
+    (list 'not (list 'list? (list 'meta name "kind"))))
 
   (doc mark-kind
     "Annotates a type as a kind.
@@ -129,7 +128,7 @@
     Most of the time, redefining kind bindings (brands, constructors) will
     produce in erroneous code from the repl if the constructor functions are
     called.")
-  (defmacro mark-kind [t]
+  (defndynamic mark-kind [t]
     (list 'meta-set! t "kind" true))
 
   (doc kind
