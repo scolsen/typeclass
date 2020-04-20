@@ -20,7 +20,7 @@
 (definterface constructor (Fn [t] (Constructor a b)))
 (definterface construct (Fn [(Constructor a b)] t))
 
-(defmodule Kinds 
+(defmodule Kinds
   (doc define-brands
     "Registers brands for type constructors.
 
@@ -31,7 +31,7 @@
 
      For example, the type (deftype (Maybe a) (Just [a]) (Nothing [])) generates the
      brand:
-       
+
        (deftype MaybeBrand Just Nothing)
 
      Brands enable us to ensure applications of construct and constructor
@@ -96,22 +96,55 @@
               (if (= 0 (length (cadr fst)))
                   (Kinds.define-construct t (cdr constructors)
                     (cons-last prefixed-constructor (cons-last brand acc)))
-                  (Kinds.define-construct t (cdr constructors) 
+                  (Kinds.define-construct t (cdr constructors)
                     (cons-last (cons-last 'x prefixed-constructor)
                              (cons-last brand acc))))))))
 
-  (doc kinded 
+  (doc kind?
+    "Returns true if a given type is a kind.
+
+    Kinds are types that define:
+
+    - brands
+    - a constructor function
+    - a construct function
+
+    The `Kinds.kind` macro generates the necessary definitions for a given type.")
+  (defmacro kind? [t]
+    ;; Bit of a hack. Metadata is initialized to ()
+    ;; Thus, all bindings have "kind" = () as default,
+    ;; so we can't just treat it as a boolean value since ()
+    ;; is not a boolean. So, we convert that to a false using list?.
+    (let [val (meta t "kind")]
+      (list 'not (list 'list? val))))
+
+  (doc mark-kind
+    "Annotates a type as a kind.
+
+    The higher-kinds library uses this binding metadata to selectively define
+    brands and constructor functions when needed. We use the explicit check
+    to prevent redefining these forms since doing so can be problematic. For any
+    given type, these forms should only ever need to be defined once.
+
+    Most of the time, redefining kind bindings (brands, constructors) will
+    produce in erroneous code from the repl if the constructor functions are
+    called.")
+  (defmacro mark-kind [t]
+    (list 'meta-set! t "kind" true))
+
+  (doc kind
     "The kinded macro designates a type as supporting higher-kinded use (i.e. as
     a type that takes an argument and can be used as a polymorphic constructor
     in type signatures such as a -> f a.
 
     It generates unique brands for the type, as well as constructor and
     construct functions.")
-  (defmacro kinded [t]
+  (defmacro kind [t]
     (let [constructors (members t)]
       (list 'do
         (Kinds.define-brands t constructors (list))
         (Kinds.define-constructor t constructors (list 'match 't))
-        (Kinds.define-construct t constructors (list 'match 'b)))))
+        (Kinds.define-construct t constructors (list 'match 'b))
+        (Kinds.mark-kind t))))
 )
 
