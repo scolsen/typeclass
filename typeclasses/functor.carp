@@ -13,39 +13,52 @@
 ;;  limitations under the License.
 (load "higher-kinds.carp")
 
+;; The fmap interface, defined against the type of type constructors (higher-kinds)
 (definterface fmap (Fn [(Ref (Fn [a] b)) (Constructor a t)] (Constructor b t)))
 
-;; Functor 
+;; Functor
 ;; Instances must implement fmap at minimum.
 (defmodule Functor
 
-  (doc instance 
-    "Defines a functor 'instance' for a type `t`.
+  (doc functor?
+    "Returns true if a given kind is a Functor instance.
+
+    In other words, returns true if the kind implements fmap.")
+  (defndynamic functor? [k]
+    (list 'defined? (Symbol.prefix k 'fmap)))
+
+  (doc instance
+    "Defines a functor 'instance' for a kind `k`.
 
      Types must define the `fmap` function against their branded constructors.")
-  ;; TODO: After the new evaluator is merged, we should be able to call the
-  ;; kinded macro directly.
-  (defmacro instance [t derive?]
-    (let [prefixed (Symbol.prefix t 'fmap)
-          constructors (members t)]
-      (list 'do 
-        (Kinds.define-brands t constructors (list))
-        (if derive?
-          (Functor.derive-fmap t (members t) (list 'match 'b))
-          ())
-        (list 'when (list 'not (list 'defined? (Symbol.prefix t 'fmap)))
+  (defmacro instance [k]
+    (let [prefixed (Symbol.prefix k 'fmap)
+          constructors (members k)]
+      (list 'do
+        (list 'when (list 'not (list 'defined? (Symbol.prefix k 'fmap)))
                   (list 'macro-error
-                    (Dynamic.String.join ["Type " (str t)
+                    (Dynamic.String.join ["Type " (str k)
                     " was declared as a functor instance but does"
-                    " not implement fmap. Use Functor.derive to automatically"
+                    " not implement fmap. Use Functor.derive-fmap to automatically"
                     " derive an implmentation for the type, or define a custom"
                     " implementation."])))
-        (Kinds.define-constructor t constructors (list 'match 't))
-        (Kinds.define-construct t constructors (list 'match 'b))
-        (list 'defmodule t (list 'defn 'functor (array 'm)
-          (list (Symbol.prefix t 'constructor) 'm))))))
+        (list 'defmodule k (list 'defn 'functor (array 'm)
+          (list (Symbol.prefix k 'constructor) 'm))))))
 
- (doc derive-fmap
+  (hidden derive-fmap-internal)
+  (defndynamic derive-fmap-internal [k constructors acc]
+    (if (= 0 (length constructors))
+    (list 'defmodule k
+      (list 'defn 'fmap (array 'f 'c)
+        (list 'match 'c (list 'Constructor.App 'x 'b)
+          acc)))
+    (let [constructor (Symbol.prefix (Symbol.join [k 'Brand])
+                        (car (car constructors)))]
+    (Functor.derive-fmap-internal k (cdr constructors)
+      (cons-last (list 'Constructor.App (list (list 'deref 'f) 'x) (list constructor))
+                 (cons-last (list constructor) acc))))))
+
+  (doc derive-fmap
    "Dervie an fmap implementation for the given type.
 
     Derive will produce the 'obvious' variant of the function in terms of your
@@ -58,19 +71,17 @@
 
     If you need a more sophisticated implementation, you can define fmap
     directly according to the fmap interface.")
- (defndynamic derive-fmap [t constructors acc]
-   (if (= 0 (length constructors))
-   (list 'defmodule t
-     (list 'defn 'fmap (array 'f 'c)
-       (list 'match 'c (list 'Constructor.App 'x 'b)
-         acc)))
-   (let [constructor (Symbol.prefix (Symbol.join [t 'Brand])
-                       (car (car constructors)))]
-   (Functor.derive-fmap t (cdr constructors)
-     (cons-last (list 'Constructor.App (list (list 'deref 'f) 'x) (list constructor))
-                (cons-last (list constructor) acc))))))
+  (defmacro derive-fmap [k]
+    (list 'if (list 'not (Kinds.kind? k))
+              (list 'macro-error (Dynamic.String.join
+                ["Tried to derive an fmap instance for type "
+                 (str k)
+                 ", but it is not a kind. Call `(Kinds.kind "
+                 (str k)
+                 ")` to make this type a kind."]))
+              (Functor.derive-fmap-internal k (members k) (list 'match 'b))))
 
- (doc replace 
+ (doc replace
    "Replaces the inhabitants of a Functor with a constant value `x`.
 
    Analogous to <$ in Haskell.")
