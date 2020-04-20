@@ -25,7 +25,7 @@
 (eval (Functor.derive-fmap Box))
 (eval (Functor.instance Box))
 
-;; Example implementation of fmap.
+; Example implementation of fmap.
 (defmodule Maybe 
   ;; Since we didn't derive an implementation of fmap for Maybe, we have to write one.
   ;; When writing implementations of higher-kinded functions, you'll need to
@@ -34,16 +34,12 @@
   ;; Branded constructors are always comprised of a type inhabitant, which is
   ;; the argument value to the type, and a unique typebrand--the members of the
   ;; type brand correspond to the constructors for that type.
-  ;;
-  ;; Here defining the implementation explicitly allows us to avoid an
-  ;; unnecessary function execution in the case that the brand designates Maybe's
-  ;; Nothing constructor, which takes no arguments.
   (defn fmap [f maybe-constructor] 
     (match maybe-constructor
       (Constructor.App x b) 
         (match b
           (MaybeBrand.Just) (Constructor.App (~f x) (MaybeBrand.Just))
-          _ (Constructor.App x (MaybeBrand.Nothing)))))
+          _ (Constructor.App (~f x) (MaybeBrand.Nothing)))))
 )
 
 ;; After implementing fmap for Mayb explicitly, declare it as an instance of
@@ -52,7 +48,7 @@
 
 ;; Now that we have two legitimate functor instances, we can use *generic* Functor
 ;; functions to operate on our types
-(Maybe.fmap &plus-one (Maybe.functor (Maybe.Just 4)))
+(Maybe.construct (fmap &plus-one (Maybe.functor (Maybe.Just 4))))
 ;; => (App 5 (Just))
 
 ;; Types are preserved, a Type's functor instance will only successfully
@@ -76,4 +72,4 @@
      (fmap &plus-one)
      (Box.construct)))
 ;; => (Of 4)
-
+(Maybe.construct (Functor.replace \a (Maybe.functor (Maybe.Just 3))))
