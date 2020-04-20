@@ -26,20 +26,24 @@
 (eval (Functor.instance Box))
 
 ; Example implementation of fmap.
-(defmodule Maybe 
+(defmodule Maybe
   ;; Since we didn't derive an implementation of fmap for Maybe, we have to write one.
   ;; When writing implementations of higher-kinded functions, you'll need to
   ;; write against the type's generated **branded constructor**.
-  ;; 
+  ;;
   ;; Branded constructors are always comprised of a type inhabitant, which is
   ;; the argument value to the type, and a unique typebrand--the members of the
   ;; type brand correspond to the constructors for that type.
-  (defn fmap [f maybe-constructor] 
+  ;;
+  ;; Here defining the implementation explicitly allows us to avoid an
+  ;; unnecessary function execution in the case that the brand designates Maybe's
+  ;; Nothing constructor, which takes no arguments.
+  (defn fmap [f maybe-constructor]
     (match maybe-constructor
-      (Constructor.App x b) 
+      (Constructor.App x b)
         (match b
           (MaybeBrand.Just) (Constructor.App (~f x) (MaybeBrand.Just))
-          _ (Constructor.App (~f x) (MaybeBrand.Nothing)))))
+          _ (Constructor.App (zero) (MaybeBrand.Nothing)))))
 )
 
 ;; After implementing fmap for Mayb explicitly, declare it as an instance of
@@ -53,7 +57,7 @@
 
 ;; Types are preserved, a Type's functor instance will only successfully
 ;; construct a branded constructor for its type.
-;; For example, 
+;; For example,
 ;;
 ;; (fmap &plus-one (Box.functor (Maybe.Just 4)))
 ;; Will spit out the obvious type error that Box.functor expects a Box type, not
