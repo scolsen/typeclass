@@ -21,28 +21,43 @@
 (definterface construct (Fn [(Constructor a b)] t))
 
 (defmodule Kinds
+
+  (doc brand-name
+    "Returns the name of the brand for a given type `t`.")
+  (defndynamic brand-name [t]
+    (Symbol.join [t 'Brand]))
+
   (doc define-brands
     "Registers brands for type constructors.
 
      Brands are opaque representations of type constructors, their inhabitants
      are the constructors of the type used to generate the brand, i.e.
 
-       <type>Brand <ConstructorA> <ConstructorB>
+         <type>Brand <ConstructorA> <ConstructorB>
 
      For example, the type (deftype (Maybe a) (Just [a]) (Nothing [])) generates the
      brand:
 
-       (deftype MaybeBrand Just Nothing)
+         (deftype MaybeBrand Just Nothing)
 
      Brands enable us to ensure applications of construct and constructor
      reamain *unique* and well-typed.")
-  (defndynamic define-brands [t constructors acc]
-    (let [brand (Symbol.join [t 'Brand])]
-    (if (= 0 (length constructors))
-        (append (list 'deftype brand) acc)
-        (let [constructor (car (car constructors))]
-          (Kinds.define-brands t (cdr constructors)
-                        (cons-last constructor acc))))))
+  (defndynamic define-brands [t]
+      (append (list 'deftype (Kinds.brand-name t))
+              (Dynamic.map car (members t))))
+
+  (hidden define-constructor-match)
+  (defndynamic define-constructor-match [t type-constructor]
+    (let [arguments (cadr type-constructor)
+          prefixed-constructor (Symbol.prefix t (car type-constructor))
+          brand-value
+            (list (Symbol.prefix (Kinds.brand-name t) (car type-constructor)))]
+      (if (= 0 (length arguments))
+          (list (list prefixed-constructor)
+                (list 'Constructor.App '(zero) brand-value))
+          (let [var (car arguments)]
+          (list (list prefixed-constructor var)
+                (list 'Constructor.App var brand-value))))))
 
   (doc define-constructor
     "Defines the constructor injection for a given type constructor.
@@ -54,21 +69,20 @@
      For exmaple, (constructor (Maybe.Just 2)) will generate a Constructor of
      the type (Constructor Int MaybeBrand), of the value (Constructor.App 2
      (MaybeBrand.Just))")
-  (defndynamic define-constructor [t constructors acc]
-  (let [fn-form (list 'defn 'constructor (array 't))]
-    (if (= 0 (length constructors))
-        (list 'defmodule t (cons-last acc fn-form))
-        (Kinds.define-constructor t (cdr constructors)
-          (let [fst (car constructors)
-                constructor (car fst)
-                prefixed-constr (list (Symbol.prefix t constructor))
-                brand (list (Symbol.prefix (Symbol.join [t 'Brand]) constructor))]
-            (if (= 0 (length (cadr fst)))
-              (cons-last (list 'Constructor.App '(zero) brand)
-                (cons-last prefixed-constr acc))
-              (let [var (car (cadr fst))]
-                (cons-last (list 'Constructor.App var brand)
-                  (cons-last (cons-last var prefixed-constr) acc)))))))))
+  (defndynamic define-constructor [t]
+    (let [fn-form '(defn constructor [t])]
+      (cons-last
+        (Dynamic.reduce append '(match t)
+          (Dynamic.map (Dynamic.curry Kinds.define-constructor-match t)
+                       (members t)))
+        fn-form)))
+
+  (hidden define-construct-match)
+  (defndynamic define-construct-match [t type-constructor]
+    (let [matchers (Kinds.define-constructor-match t type-constructor)
+          brand (caddr(cadr matchers))
+          origin-type (car matchers)]
+      (list brand origin-type)))
 
   (doc define-construct
     "Defines the construct projection for a given type constructor.
@@ -81,24 +95,16 @@
     Brands are non-lossy in their inhabitants, e.g. if the Constructor value
     were instead (Constructor.App 2 (MaybeBrand.Nothing)) it would generate the
     type (Maybe Int) of value (Maybe.Nothing)")
-  (defndynamic define-construct [t constructors acc]
-    (let [fn-form (list 'defn 'construct (array 'c))
-          unary (list 'Constructor.App 'x 'b)
-          matcher (cons-last unary (list 'match 'c))]
-      (if (= 0 (length constructors))
-          (let [inhabited-branch (append matcher (list acc))]
-            (list 'defmodule t (cons-last inhabited-branch fn-form)))
-          (let [fst (car constructors)
-                constructor (car fst)
-                prefixed-constructor (list (Symbol.prefix t constructor))
-                brand (list (Symbol.prefix (Symbol.join [t 'Brand])
-                constructor))]
-              (if (= 0 (length (cadr fst)))
-                  (Kinds.define-construct t (cdr constructors)
-                    (cons-last prefixed-constructor (cons-last brand acc)))
-                  (Kinds.define-construct t (cdr constructors)
-                    (cons-last (cons-last 'x prefixed-constructor)
-                             (cons-last brand acc))))))))
+  (defndynamic define-construct [t]
+    (let [fn-form '(defn construct [c])
+          app '(Constructor.App a b)
+          matcher (cons-last app '(match c))]
+      (cons-last
+        (append matcher
+          (list (Dynamic.reduce append '(match b)
+            (Dynamic.map (Dynamic.curry Kinds.define-construct-match t)
+                         (members t)))))
+        fn-form)))
 
   (doc kind?
     "Returns true if a given type is a kind.
@@ -141,9 +147,10 @@
   (defmacro kind [t]
     (let [constructors (members t)]
       (list 'do
-        (Kinds.define-brands t constructors (list))
-        (Kinds.define-constructor t constructors (list 'match 't))
-        (Kinds.define-construct t constructors (list 'match 'b))
+        (Kinds.define-brands t)
+        (list 'defmodule t
+          (Kinds.define-constructor t)
+          (Kinds.define-construct t))
         (Kinds.mark-kind t))))
 )
 
