@@ -18,7 +18,6 @@
 ;; Functor
 ;; Instances must implement fmap at minimum.
 (defmodule Functor
-
   (doc functor?
     "Returns true if a given kind is a Functor instance.
 
@@ -34,28 +33,35 @@
     (let [prefixed (Symbol.prefix k 'fmap)
           constructors (members k)]
       (list 'do
-        (list 'when (list 'not (list 'defined? (Symbol.prefix k 'fmap)))
-                  (list 'macro-error
-                    (Dynamic.String.join ["Type " (str k)
-                    " was declared as a functor instance but does"
-                    " not implement fmap. Use Functor.derive-fmap to automatically"
-                    " derive an implmentation for the type, or define a custom"
-                    " implementation."])))
-        (list 'defmodule k (list 'defn 'functor (array 'm)
-          (list (Symbol.prefix k 'constructor) 'm))))))
+        (list 'when (list 'not (Functor.functor? k))
+                    (list 'macro-error
+                          (Dynamic.String.join ["Type " (str k)
+                          " was declared as a functor instance but does"
+                          " not implement fmap. Use Functor.derive-fmap to automatically"
+                          " derive an implmentation for the type, or define a custom"
+                          " implementation."])))
+        (list 'defmodule k
+          (list 'defn 'functor (array 'm)
+                (list (Symbol.prefix k 'constructor) 'm))))))
+
+  (hidden define-fmap-match)
+  (defndynamic define-fmap-match [k type-constructor]
+    (let [brand-constructor
+           (Symbol.prefix (Kinds.brand-name k) (car type-constructor))]
+      (list (list brand-constructor)
+            (list 'Constructor.App '((deref f) x)
+                  (list brand-constructor)))))
 
   (hidden derive-fmap-internal)
-  (defndynamic derive-fmap-internal [k constructors acc]
-    (if (= 0 (length constructors))
-    (list 'defmodule k
-      (list 'defn 'fmap (array 'f 'c)
-        (list 'match 'c (list 'Constructor.App 'x 'b)
-          acc)))
-    (let [constructor (Symbol.prefix (Symbol.join [k 'Brand])
-                        (car (car constructors)))]
-    (Functor.derive-fmap-internal k (cdr constructors)
-      (cons-last (list 'Constructor.App (list (list 'deref 'f) 'x) (list constructor))
-                 (cons-last (list constructor) acc))))))
+  (defndynamic derive-fmap-internal [k]
+    (let [constructors (members k)
+          fn-form '(defn fmap [f c])
+          matcher '(match c (Constructor.App x b))
+          match-bodies (Dynamic.map (Dynamic.curry Functor.define-fmap-match k)
+                                    constructors)]
+      (list 'defmodule k
+        (cons-last (cons-last (reduce append '(match b) match-bodies) matcher)
+                   fn-form))))
 
   (doc derive-fmap
    "Dervie an fmap implementation for the given type.
@@ -78,7 +84,7 @@
                  ", but it is not a kind. Call `(Kinds.kind "
                  (str k)
                  ")` to make this type a kind."]))
-              (Functor.derive-fmap-internal k (members k) (list 'match 'b))))
+              (Functor.derive-fmap-internal k)))
 
  (doc replace
    "Replaces the inhabitants of a Functor with a constant value `x`.
