@@ -1,0 +1,56 @@
+(load "Test.carp")
+(load "Maybe.carp")
+(use Test)
+
+(load "../higher-kinds.carp")
+(use Applicative)
+
+(eval (Kinds.kind Maybe))
+(eval (Functor.derive-fmap Maybe))
+(eval (Applicative.derive-sequence Maybe))
+
+(defmodule Maybe (defn lift [x] (Constructor.App x (MaybeBrand.Just))))
+
+(eval (Applicative.instance Maybe))
+
+(defn ref-then-slice [s x y]
+  (String.slice &s x y))
+
+(deftest test
+  (assert-equal test 
+    &(Maybe.construct (Maybe.lift 1))
+    &(Maybe.Just 1)
+    "lift works as expected")
+  (assert-equal test
+    &(Maybe.construct (sequence (lift inc) (Maybe.applicative (Maybe.Just 1))))
+    &(Maybe.Just 2)
+    "sequence works as expected")
+  (assert-equal test
+    &(Maybe.construct (lift-unary inc (Maybe.applicative (Maybe.Just 1))))
+    &(Maybe.Just 2)
+    "lift-unary works as expected")
+  (assert-equal test
+    &(Maybe.construct (Constructor.App 5 (MaybeBrand.Just)))
+    &(Maybe.construct 
+      (lift-binary + (Maybe.applicative (Maybe.Just 2))
+                     (Maybe.applicative (Maybe.Just 3))))
+    "lift-binary works as expected")
+  ;; Currently results in a runtime error.
+  ;(assert-equal test
+  ;  &(Maybe.construct (lift-ternary ref-then-slice 
+  ;    (Maybe.applicative (Maybe.Just @"foobarbaz")) 
+  ;    (Maybe.applicative (Maybe.Just 0)) 
+  ;    (Maybe.applicative (Maybe.Just 3))))
+  ;  &(Maybe.Just @"foo")
+  ;  "lift-ternary works as expected")
+  (assert-equal test
+    &(Maybe.construct (ignore-first (lift Int.inc)
+      (Maybe.applicative (Maybe.Just 1))))
+    &(Maybe.Just 1)
+    "ignore-first works as expected")
+  (assert-equal test
+    &(Maybe.construct (ignore-second (Maybe.applicative (Maybe.Just 1))
+      (Maybe.applicative (Maybe.Just 0))))
+    &(Maybe.Just 1)
+    "ignore-second works as expected")
+)
