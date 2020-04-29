@@ -23,6 +23,8 @@
 
     In other words, returns true if the kind implements fmap.")
   (defndynamic functor? [k]
+    ;; We cannot call defined directly, otherwise it evaluates
+    ;; against "(Symbol.prefix k)" instead of the result of that computation
     (list 'defined? (Symbol.prefix k 'fmap)))
 
   (doc instance
