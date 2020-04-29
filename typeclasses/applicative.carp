@@ -1,0 +1,94 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+(doc lift
+  "Lifts a 'pure' value into a constructor for a given type.
+
+   Equivalent to `pure` in Haskell.")
+(definterface lift (Fn [a] (Constructor a b)))
+
+(doc sequence 
+  "Sequential application.
+
+   Equivalent to <*> in Haskell.")
+(definterface sequence
+  (Fn [(Constructor (Fn [a] b) t) (Constructor a t)] (Constructor b t)))
+
+(defmodule Applicative
+  (defndynamic applicative? [k]
+    (let [lift-impl (Symbol.prefix k 'lift)
+          sequence-impl (Symbol.prefix k 'sequence)]
+    (list 'Dynamic.and (list 'defined? lift-impl)
+                       (list 'defined? sequence-impl))))
+
+  (defmacro instance [k]
+    (list 'if (list 'not (Applicative.applicative? k))
+              (list 'macro-error
+                    (Dynamic.String.join ["Type " (str k)
+                    " was declared an applicative instance but does"
+                    " not implement lift and sequence."
+                    " Define an implementation of lift, and use"
+                    " Applicative.derive-sequence to derive and implementation"
+                    " of sequence, or define a custom implementation of"
+                    " seuqence."]))
+              (list 'defmodule k
+                (list 'defn 'applicative (array 'x)
+                  (list (Symbol.prefix k 'constructor) 'x)))))
+
+  (defndynamic derive-sequence-internal [k]
+    (let [constructors (members k)
+          fn-form '(defn sequence [cf cx])
+          matcher '(match cf (Constructor.App f _))
+          body '(fmap &f cx)]
+      (list 'defmodule k
+        (cons-last (cons-last body matcher)
+                   fn-form))))
+  
+  (defmacro derive-sequence [k]
+    (list 'if (list 'not (Functor.functor? k))
+              (list 'macro-error (Dynamic.String.join
+                    ["Tried to derive a sequence implementation for type "
+                     (str k)
+                     " but it doesn't implement fmap. Call "
+                     "`(Functor.derive-fmap "
+                     (str k)
+                     ")` to derive an implementation of fmap."]))
+              (Applicative.derive-sequence-internal k)))
+
+  (defn lift-unary [f cx]
+    (sequence (lift f) cx))
+
+  (defn lift-binary [f cx cy]
+    (sequence (fmap &(binary-partial binary-partial f) cx) cy))
+
+  ;; The current implementation is a bit strange.
+  ;; Unfortunately, carp doesn't currently support returning
+  ;; nested anonymous functions. So, the obvious approach,
+  ;; whereby we curry a ternary function and sequence it doesn't work
+  ;; here. However, Carp does support partials, which we exploit.
+  (defn lift-ternary [f cx cy cz]
+    ;; ! The obvious definition Results in a memory error.
+    ;; We have to match explicitly. This results in slightly incorrect
+    ;; type signatures for the function.
+    (match (lift-binary ternary-partial (lift f) cx)
+      (Constructor.App g b) (match cy (Constructor.App y _)
+        (match cz (Constructor.App z _) (Constructor.App (g y z) b)))))
+
+  (defn ignore-first [cx cy]
+    (sequence (Functor.replace id cx) cy))
+
+  (defn ignore-second [cx cy]
+    (sequence (fmap &const cx) cy))
+)
+
