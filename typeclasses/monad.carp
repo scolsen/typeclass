@@ -63,12 +63,6 @@
   (defn reverse-bind [f cx]
     (bind cx f))
 
-  (defn lower [cx]
-    (match @cx (Constructor.App x _) x))
-
-  (defn <- [cx]
-    (lower cx))
-
   (defn lift-ternary [f cx cy cz]
     (let [x (<- &cx)
           y (<- &cy)

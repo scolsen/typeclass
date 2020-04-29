@@ -12,16 +12,9 @@
 ;;  See the License for the specific language governing permissions and
 ;;  limitations under the License.
 
+(load "constructor.carp")
 (load "fp.carp")
-(use FP)
-
-;; Abstract type representing type construction.
-(deftype (Constructor a t)
-    (App [a t]))
-
-;; Projections/injections to and from types to constructor abstractions.
-(definterface constructor (Fn [t] (Constructor a b)))
-(definterface construct (Fn [(Constructor a b)] t))
+(use-all FP Constructor)
 
 (defmodule Kinds
 
