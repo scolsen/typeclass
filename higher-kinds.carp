@@ -160,3 +160,4 @@
 ;; Typeclass definitions
 (load "typeclasses/functor.carp")
 (load "typeclasses/applicative.carp")
+(load "typeclasses/monad.carp")

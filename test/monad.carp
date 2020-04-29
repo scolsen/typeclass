@@ -1,0 +1,50 @@
+(load "Test.carp")
+(use Test)
+
+(load "../higher-kinds.carp")
+
+(use Monad)
+
+(eval (Kinds.kind Maybe))
+(eval (Functor.derive-fmap Maybe))
+(eval (Applicative.derive-sequence Maybe))
+
+(defmodule Maybe (defn lift [x] (Constructor.App x (MaybeBrand.Just))))
+
+(eval (Monad.derive-bind Maybe))
+(eval (Monad.instance Maybe))
+
+(defn ref-then-slice [s x y]
+  (String.slice &s x y))
+
+(defn if-one [x] (if (= x 1) (Maybe.constructor (Maybe.Just 100)) (Maybe.constructor (Maybe.Nothing))))
+
+(deftest test
+  (assert-equal test
+    &(Maybe.Just 100)
+    &(Maybe.construct (bind (Maybe.constructor (Maybe.Just 1)) &if-one))
+    "bind works as expected")
+  (assert-equal test
+    &(Maybe.Just \a)
+    &(Maybe.construct (return \a))
+    "return works as expected")
+  (assert-equal test
+    &(Maybe.Just 2)
+    &(Maybe.construct (join (Constructor.App (Maybe.constructor (Maybe.Just 2)) (MaybeBrand.Just))))
+    "join works as expected")
+  (assert-equal test
+    &(the (Maybe Int) (Maybe.Nothing))
+    &(Maybe.construct (reverse-bind &if-one (Maybe.constructor (Maybe.Just 4))))
+    "reverse-bind works as expected")
+  (assert-equal test
+    &(Maybe.Just 3)
+    &(Maybe.construct (apply (Maybe.lift Int.inc)
+                             (Maybe.constructor (Maybe.Just 2))))
+    "apply works as expected")
+  (assert-equal test
+    &(Maybe.Just @"foo")
+    &(Maybe.construct (lift-ternary ref-then-slice (Maybe.constructor (Maybe.Just @"foobar"))
+                      (Maybe.constructor (Maybe.Just 0))
+                      (Maybe.constructor (Maybe.Just 3))))
+    "lift-ternary works as expected")
+)
