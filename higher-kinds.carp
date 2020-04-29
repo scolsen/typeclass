@@ -12,6 +12,9 @@
 ;;  See the License for the specific language governing permissions and
 ;;  limitations under the License.
 
+(load "fp.carp")
+(use FP)
+
 ;; Abstract type representing type construction.
 (deftype (Constructor a t)
     (App [a t]))
@@ -156,3 +159,4 @@
 
 ;; Typeclass definitions
 (load "typeclasses/functor.carp")
+(load "typeclasses/applicative.carp")
