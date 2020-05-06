@@ -12,44 +12,15 @@
 ;;  See the License for the specific language governing permissions and
 ;;  limitations under the License.
 
-(definterface bind (Fn [(Constructor a t) (Ref (Fn [a] (Constructor b t)))] (Constructor b t)))
+(definterface bind (Fn [(f a) (Ref (Fn [a] (f b)))] (f b)))
+(definterface <- (Fn [(f a)] a))
 
 (defmodule Monad
-
   (defndynamic monad? [k]
     (let [bind-impl (Symbol.prefix k 'bind)]
       (list 'defined? bind-impl)))
 
-  (defndynamic derive-bind-internal [k]
-    (let [constructors (members k)
-          fn-form '(defn bind [cx f])
-          matcher '(match cx (Constructor.App x _))
-          match-body '(~f x)]
-      (list 'defmodule k
-        (cons-last (cons-last match-body matcher)
-                   fn-form))))
-
-  (defmacro derive-bind [k]
-    (list 'if (list 'not (Applicative.applicative? k))
-              (list 'macro-error (Dynamic.String.join
-                    ["Tried to derive a bind implementation for type "
-                     (str k)
-                     " but it isn't an Applicative instance."]))
-              (Monad.derive-bind-internal k)))
-
-  (defmacro instance [k]
-    (list 'if (list 'not (Monad.monad? k))
-              (list 'macro-error
-                    (Dynamic.String.join ["Type " (str k)
-                    " was declared a monad instance but does not"
-                    " implement bind."
-                    " Use Moand.derive-bind to derive an implementation"
-                    " or define a custom implemention."]))
-              (list 'defmodule k
-                (list 'defn 'monad (array 'x)
-                  (list (Symbol.prefix k 'constructor) 'x)))))
-
-  ;; Note that we could also deifne this as
+  ;; Note that we could also define this as
   ;; Applicative.ignore-first. This definition is the same
   ;; as Haskell's default, however.
   (defn replace [cx cy]
@@ -64,9 +35,9 @@
     (bind cx f))
 
   (defn lift-ternary [f cx cy cz]
-    (let [x (<- &cx)
-          y (<- &cy)
-          z (<- &cz)]
+    (let [x (<- cx)
+          y (<- cy)
+          z (<- cz)]
     (return (f x y z))))
 
   (defn apply [cf cx]

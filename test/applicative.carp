@@ -2,38 +2,39 @@
 (load "Maybe.carp")
 (use Test)
 
-(load "../higher-kinds.carp")
+(load "../typeclasses.carp")
 (use Applicative)
 
-(eval (Kinds.kind Maybe))
-(eval (Functor.derive-fmap Maybe))
-(eval (Applicative.derive-sequence Maybe))
-
-(defmodule Maybe (defn lift [x] (Constructor.App x (MaybeBrand.Just))))
-
-(eval (Applicative.instance Maybe))
+(defmodule Maybe 
+  (defn fmap [f m] 
+    (match m
+      (Maybe.Just x) (Maybe.Just (~f x))
+      (Maybe.Nothing) (Maybe.Nothing)))
+  (defn lift [x] (Maybe.Just x))
+  (defn sequence [mf mx]
+    (match mf 
+      (Maybe.Nothing) (Maybe.Nothing)
+      (Maybe.Just f) (fmap &f mx))))
 
 (defn ref-then-slice [s x y]
   (String.slice &s x y))
 
 (deftest test
   (assert-equal test 
-    &(Maybe.construct (Maybe.lift 1))
+    &(Maybe.lift 1)
     &(Maybe.Just 1)
     "lift works as expected")
   (assert-equal test
-    &(Maybe.construct (sequence (lift inc) (Maybe.applicative (Maybe.Just 1))))
+    &(sequence (lift inc) (Maybe.Just 1))
     &(Maybe.Just 2)
     "sequence works as expected")
   (assert-equal test
-    &(Maybe.construct (lift-unary inc (Maybe.applicative (Maybe.Just 1))))
+    &(lift-unary inc (Maybe.Just 1))
     &(Maybe.Just 2)
     "lift-unary works as expected")
   (assert-equal test
-    &(Maybe.construct (Constructor.App 5 (MaybeBrand.Just)))
-    &(Maybe.construct 
-      (lift-binary + (Maybe.applicative (Maybe.Just 2))
-                     (Maybe.applicative (Maybe.Just 3))))
+    &(Maybe.Just 5)
+    &(lift-binary + (Maybe.Just 2) (Maybe.Just 3))
     "lift-binary works as expected")
   ;; Currently results in a runtime error.
   ;(assert-equal test
@@ -44,13 +45,11 @@
   ;  &(Maybe.Just @"foo")
   ;  "lift-ternary works as expected")
   (assert-equal test
-    &(Maybe.construct (ignore-first (lift Int.inc)
-      (Maybe.applicative (Maybe.Just 1))))
+    &(ignore-first (lift Int.inc) (Maybe.Just 1))
     &(Maybe.Just 1)
     "ignore-first works as expected")
   (assert-equal test
-    &(Maybe.construct (ignore-second (Maybe.applicative (Maybe.Just 1))
-      (Maybe.applicative (Maybe.Just 0))))
+    &(ignore-second (Maybe.Just 1) (Maybe.Just 0))
     &(Maybe.Just 1)
     "ignore-second works as expected")
 )

@@ -13,7 +13,7 @@
 ;;  limitations under the License.
 
 ;; The fmap interface, defined against the type of type constructors (higher-kinds)
-(definterface fmap (Fn [(Ref (Fn [a] b)) (Constructor a t)] (Constructor b t)))
+(definterface fmap (Fn [(Ref (Fn [a] b)) (f a)] (f b)))
 
 ;; Functor
 ;; Instances must implement fmap at minimum.
@@ -26,67 +26,6 @@
     ;; We cannot call defined directly, otherwise it evaluates
     ;; against "(Symbol.prefix k)" instead of the result of that computation
     (list 'defined? (Symbol.prefix k 'fmap)))
-
-  (doc instance
-    "Defines a functor 'instance' for a kind `k`.
-
-     Types must define the `fmap` function against their branded constructors.")
-  (defmacro instance [k]
-    (let [prefixed (Symbol.prefix k 'fmap)
-          constructors (members k)]
-      (list 'do
-        (list 'when (list 'not (Functor.functor? k))
-                    (list 'macro-error
-                          (Dynamic.String.join ["Type " (str k)
-                          " was declared as a functor instance but does"
-                          " not implement fmap. Use Functor.derive-fmap to automatically"
-                          " derive an implmentation for the type, or define a custom"
-                          " implementation."])))
-        (list 'defmodule k
-          (list 'defn 'functor (array 'm)
-                (list (Symbol.prefix k 'constructor) 'm))))))
-
-  (hidden define-fmap-match)
-  (defndynamic define-fmap-match [k type-constructor]
-    (let [brand-constructor
-           (Symbol.prefix (Kinds.brand-name k) (car type-constructor))]
-      (list (list brand-constructor)
-            (list 'Constructor.App '((deref f) x)
-                  (list brand-constructor)))))
-
-  (hidden derive-fmap-internal)
-  (defndynamic derive-fmap-internal [k]
-    (let [constructors (members k)
-          fn-form '(defn fmap [f c])
-          matcher '(match c (Constructor.App x b))
-          match-bodies (Dynamic.map (Dynamic.curry Functor.define-fmap-match k)
-                                    constructors)]
-      (list 'defmodule k
-        (cons-last (cons-last (reduce append '(match b) match-bodies) matcher)
-                   fn-form))))
-
-  (doc derive-fmap
-   "Dervie an fmap implementation for the given type.
-
-    Derive will produce the 'obvious' variant of the function in terms of your
-    branded type constructor.
-
-    Concretely, it defines roughly, the following function:
-
-    (fn [f x] (match x (Constructor a b) (match b (Brand.One) (Constructor (f x)
-    Brand.One) (Brand.Two) ...))).
-
-    If you need a more sophisticated implementation, you can define fmap
-    directly according to the fmap interface.")
-  (defmacro derive-fmap [k]
-    (list 'if (list 'not (Kinds.kind? k))
-              (list 'macro-error (Dynamic.String.join
-                ["Tried to derive an fmap instance for type "
-                 (str k)
-                 ", but it is not a kind. Call `(Kinds.kind "
-                 (str k)
-                 ")` to make this type a kind."]))
-              (Functor.derive-fmap-internal k)))
 
  (doc replace
    "Replaces the inhabitants of a Functor with a constant value `x`.
