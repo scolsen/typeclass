@@ -14,24 +14,43 @@
 
 ;; The fmap interface, defined against the type of type constructors (higher-kinds)
 (definterface fmap (Fn [(Ref (Fn [a] b)) (f a)] (f b)))
+(definterface fmap! (Fn [(Ref (Fn [a] b)) (Ref (f a))] Unit))
 
-;; Functor
 ;; Instances must implement fmap at minimum.
 (defmodule Functor
   (doc functor?
-    "Returns true if a given kind is a Functor instance.
-
-    In other words, returns true if the kind implements fmap.")
+    "Returns true if a given kind is a Functor instance."
+    ""
+    "In other words, returns true if the kind implements fmap.")
   (defndynamic functor? [k]
     ;; We cannot call defined directly, otherwise it evaluates
     ;; against "(Symbol.prefix k)" instead of the result of that computation
-    (list 'defined? (Symbol.prefix k 'fmap)))
+    (list 'defined? (Symbol.prefix k 'map)))
 
  (doc replace
-   "Replaces the inhabitants of a Functor with a constant value `x`.
+   "Replaces the inhabitants of a functor with a constant value `x`."
+   ""
+   "Analogous to <$ in Haskell.")
+ (sig replace (Fn [b (f a)] (f b)))
+ (defn replace [x functor]
+   (fmap &(const x) functor))
 
-   Analogous to <$ in Haskell.")
- (defn replace [x c]
-   (fmap &(const x) c))
+ (doc replace!
+   "Replaces the inhabitants of a functor with the value `x` in place.")
+ (sig replace! (Fn [b (Ref (f a))] Unit))
+ (defn replace! [x functor-ref]
+   (fmap! &(const x) functor-ref))
+
+ (doc void
+   "Replaces the inhabitant of a functor with Unit.")
+ (sig void (Fn [(f a)] (f Unit)))
+ (defn void [functor]
+   (fmap &(fn [x] ()) functor))
+
+ (doc void
+   "Replaces the inhabitant of a functor with Unit in place.")
+ (sig void! (Fn [(Ref (f a))] Unit))
+ (defn void! [functor-ref]
+   (fmap! &(fn [x] ()) functor-ref))
 )
 
