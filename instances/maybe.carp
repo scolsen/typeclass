@@ -1,0 +1,54 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+(load-once "typeclasses/functor.carp")
+
+(defmodule Maybe
+  (defmodule Functor
+    (implements fmap fmap)
+    (doc fmap
+      "Maps a function `f` over the value contained in a Maybe."
+      ""
+      "```"
+      "(fmap &inc (Maybe.Just 2))"
+      "=> (Just 3)"
+      "```")
+    (defn fmap [f maybe]
+      (match maybe
+        (Maybe.Nothing) (Maybe.Nothing)
+        (Maybe.Just x) (Maybe.Just (~f x))))
+
+    (implements fmap! fmap!)
+    (doc fmap!
+      "*Note: This function is unsafe*"
+      ""
+      ("Maps a function `f` over the value contained in a Maybe in-place. " false)
+      "This function relies on `Unsafe.coerce`, it is potentially unsafe."
+      ""
+      "If the `maybe` is `Nothing`, this does nothing; otherwise, the reference "
+      ("to `maybe` is updated to contain the result of mapping `f` over " false)
+      "the maybe's value."
+      ""
+      "```"
+      "(let-do [m &(Maybe.Just 2)] (fmap! &inc m) m"
+      "=> (Just 3)"
+      "```")
+    (defn fmap! [f maybe]
+      (let [maybe* ((the (Fn [(Ref (Maybe a))] (Ptr (Maybe a))) Unsafe.coerce)
+      maybe)]
+        (match-ref maybe
+          (Maybe.Nothing) ()
+          (Maybe.Just x) (Pointer.set maybe* (Maybe.Just (~f @x))))))
+  )
+)
