@@ -12,45 +12,38 @@
 ;;  See the License for the specific language governing permissions and
 ;;  limitations under the License.
 
-;; The fmap interface, defined against the type of type constructors (higher-kinds)
 (definterface fmap (Fn [(Ref (Fn [a] b)) (f a)] (f b)))
-(definterface fmap! (Fn [(Ref (Fn [a] b)) (Ref (f a))] Unit))
+(doc fmap
+  "Maps a function over the inhabitants of a unary type constructor.")
 
-;; Instances must implement fmap at minimum.
+(definterface fmap! (Fn [(Ref (Fn [a] a)) (Ref (f a))] Unit))
+(doc fmap!
+  "Maps a function over the inhabitants of a unary type constructor in-place."
+  ""
+  ("Unlike `fmap`, the function argument must 'endomorphic'; it must " false)
+  "its argument type and return type must be the same."
+  "*Note: Implementations of this interface may be unsafe.*")
+
+(doc Functor
+  ("The Functor module defines generic functions for manipulating " false)
+  "any type that implements `fmap` and optionally `fmap!`")
 (defmodule Functor
-  (doc functor?
-    "Returns true if a given kind is a Functor instance."
-    ""
-    "In other words, returns true if the kind implements fmap.")
-  (defndynamic functor? [k]
-    ;; We cannot call defined directly, otherwise it evaluates
-    ;; against "(Symbol.prefix k)" instead of the result of that computation
-    (list 'defined? (Symbol.prefix k 'map)))
-
  (doc replace
-   "Replaces the inhabitants of a functor with a constant value `x`."
-   ""
-   "Analogous to <$ in Haskell.")
+   "Replaces the inhabitants of a functor with a constant value `x`.")
  (sig replace (Fn [b (f a)] (f b)))
  (defn replace [x functor]
    (fmap &(const x) functor))
 
  (doc replace!
    "Replaces the inhabitants of a functor with the value `x` in place.")
- (sig replace! (Fn [b (Ref (f a))] Unit))
+ (sig replace! (Fn [a (Ref (f a))] Unit))
  (defn replace! [x functor-ref]
-   (fmap! &(const x) functor-ref))
+   (fmap! &(the (Fn [a] a) (const x)) functor-ref))
 
  (doc void
    "Replaces the inhabitant of a functor with Unit.")
  (sig void (Fn [(f a)] (f Unit)))
  (defn void [functor]
    (fmap &(fn [x] ()) functor))
-
- (doc void
-   "Replaces the inhabitant of a functor with Unit in place.")
- (sig void! (Fn [(Ref (f a))] Unit))
- (defn void! [functor-ref]
-   (fmap! &(fn [x] ()) functor-ref))
 )
 
