@@ -1,58 +1,41 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+(load "typeclasses/monad.carp")
+(load "test/box.carp")
 (load "Test.carp")
 (use Test)
 
-(load "../typeclasses.carp")
-
-(use Monad)
-(defmodule Maybe 
-  (defn fmap [f m] 
-    (match m
-      (Maybe.Just x) (Maybe.Just (~f x))
-      (Maybe.Nothing) (Maybe.Nothing)))
-  (defn lift [x] (Maybe.Just x))
-  (defn sequence [mf mx]
-    (match mf 
-      (Maybe.Nothing) (Maybe.Nothing)
-      (Maybe.Just f) (fmap &f mx)))
-  (defn bind [ma f] 
-    (match ma
-      (Maybe.Nothing) (Maybe.Nothing)
-      (Maybe.Just x) (~f x)))
-  (defn <- [m] 
-    (match m
-      (Maybe.Nothing) (zero)
-      (Maybe.Just x) x)))
-
-(defn ref-then-slice [s x y]
-  (String.slice &s x y))
-
-(defn if-one [x] (if (= x 1) (Maybe.Just 100) (Maybe.Nothing)))
-
 (deftest test
   (assert-equal test
-    &(Maybe.Just 100)
-    &(bind (Maybe.Just 1) &if-one)
+    &(Box 100)
+    &(bind (Box 1) &(fn [x] (pure (+ 99 x))))
     "bind works as expected")
   (assert-equal test
-    &(Maybe.Just \a)
-    &(return \a)
-    "return works as expected")
+    &(Box 100)
+    &(let-do [b (Box 1)] (bind! &b &(fn [x] (pure (+ 99 x)))) b)
+    "bind! works as expected")
   (assert-equal test
-    &(Maybe.Just 2)
-    &(join (Maybe.Just (Maybe.Just 2)))
+    &(Box 2)
+    &(Monad.join (Box (Box 2)))
     "join works as expected")
   (assert-equal test
-    &(the (Maybe Int) (Maybe.Nothing))
-    &(reverse-bind &if-one (Maybe.Just 4))
+    &(Box 5)
+    &(Monad.reverse-bind &(comp pure inc) (Box 4))
     "reverse-bind works as expected")
   (assert-equal test
-    &(Maybe.Just 3)
-    &(apply (Maybe.lift Int.inc) (Maybe.Just 2))
-    "apply works as expected")
-  (assert-equal test
-    &(Maybe.Just @"foo")
-    &(lift-ternary ref-then-slice (Maybe.Just @"foobar")
-                                  (Maybe.Just 0)
-                                  (Maybe.Just 3))
-    "lift-ternary works as expected")
+    &(Box 2)
+    &(the (Box Int) (Monad.compose &(comp pure inc) &(comp pure dec) 2))
+    "compose works as expected")
 )
