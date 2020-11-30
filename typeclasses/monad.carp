@@ -22,7 +22,7 @@
   "(bind (Maybe.Just 2) &(comp pure inc))"
   "=> (Just 3)"
   "```")
-(definterface bind! (Fn [(Ref (f a)) (Ref (Fn [a] (f b)))] Unit))
+(definterface bind! (Fn [(Ref (f a)) (Ref (Fn [a] (f a)))] Unit))
 (doc bind!
   "Sequences two computations in a monadic context in-place."
   ""
