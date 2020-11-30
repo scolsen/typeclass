@@ -16,8 +16,6 @@
 (load-once "typeclasses/applicative.carp")
 (load-once "typeclasses/monad.carp")
 
-(use Maybe)
-
 (defmodule Maybe
   (defmodule Functor
     (implements fmap fmap)
@@ -49,8 +47,8 @@
       "=> (Just 3)"
       "```")
     (defn fmap! [f maybe]
-      (let [maybe* ((the (Fn [(Ref (Maybe a))] (Ptr (Maybe a))) Unsafe.coerce)
-      maybe)]
+      (let [maybe* (the (Ptr (Maybe a)) (Unsafe.coerce maybe))
+            _ (Pointer.to-value maybe*)]
         (match-ref maybe
           (Nothing) ()
           (Just x) (Pointer.set maybe* (Just (~f @x))))))
@@ -93,8 +91,8 @@
         (Just x) (~f x)))
     (implements bind! bind!)
     (defn bind! [maybe f]
-      (let [maybe* ((the (Fn [(Ref (Maybe a))] (Ptr (Maybe a))) Unsafe.coerce)
-      maybe)]
+      (let [maybe* (the (Ptr (Maybe a)) (Unsafe.coerce maybe))
+            _ (Pointer.to-value maybe*)]
         (match-ref maybe
           (Nothing) ()
           (Just x) (Pointer.set maybe* (~f @x)))))
