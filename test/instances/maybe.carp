@@ -13,7 +13,7 @@
 ;;  limitations under the License.
 
 (load-once "instances/maybe.carp")
-(load-once "Test.carp")
+(load "Test.carp")
 
 (use Test)
 
@@ -26,4 +26,47 @@
     &(Maybe.Just 3)
     &(let-do [m (Maybe.Just 2)] (fmap! &inc &m) m)
     "fmap! maps a function over a maybe in-place")
+  (assert-equal test
+    &(Maybe.Just 0)
+    &(pure 0)
+    "pure takes a value into a Maybe")
+  (assert-equal test
+    &(Maybe.Just 4)
+    &(sequence (Maybe.Just inc) (Maybe.Just 3))
+    "sequence applies a function to a maybe")
+  (assert-equal test
+    &(Maybe.Just 4)
+    &(let-do [m (Maybe.Just 3)] (sequence! &(Maybe.Just inc) &m) m)
+    "sequence! applies a function to a maybe in-place")
+  (assert-equal test
+    &(Maybe.Just 2)
+    &(bind (Maybe.Just 1) &(comp pure inc))
+    "bind executes a computation in the Maybe monad")
+  (assert-equal test
+    &(Maybe.Just 2)
+    &(let-do [m (Maybe.Just 1)] (bind! &m &(comp pure inc)) m)
+    "bind! executes a computation in the Maybe monad in-place")
+
+  ;; check that mutating functions are memory balanced
+  (assert-exit test
+    0
+    (fn [] (Debug.assert-balanced 
+      (let-do [m (Maybe.Just @"foo")] 
+        (fmap! &(fn [x] (append &x "bar")) &m) 
+        (ignore m))))
+    "fmap! is memory balanced")
+  (assert-exit test
+    0
+    (fn [] (Debug.assert-balanced 
+      (let-do [m (Maybe.Just @"foo")] 
+        (sequence! &(Maybe.Just (fn [x] (append &x "bar"))) &m)
+        (ignore m))))
+    "sequence! is memory balanced")
+  (assert-exit test
+    0
+    (fn [] (Debug.assert-balanced 
+      (let-do [m (Maybe.Just @"foo")] 
+        (bind! &m &(fn [x] (pure (append &x "bar"))))
+        (ignore m))))
+    "bind! is memory balanced")
 )
