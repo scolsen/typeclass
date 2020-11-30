@@ -12,35 +12,123 @@
 ;;  See the License for the specific language governing permissions and
 ;;  limitations under the License.
 
+(load-once "typeclasses/applicative.carp")
+
 (definterface bind (Fn [(f a) (Ref (Fn [a] (f b)))] (f b)))
-(definterface <- (Fn [(f a)] a))
+(doc bind
+  "Sequences two computations in a monadic context."
+  ""
+  "```"
+  "(bind (Maybe.Just 2) &(comp pure inc))"
+  "=> (Just 3)"
+  "```")
+(definterface bind! (Fn [(Ref (f a)) (Ref (Fn [a] (f b)))] Unit))
+(doc bind!
+  "Sequences two computations in a monadic context in-place."
+  ""
+  "```"
+  "(let-do [m (Maybe.Just 2)] (bind! &m &(comp pure inc)) m)"
+  "(Just 3)"
+  "```")
 
 (defmodule Monad
-  (defndynamic monad? [k]
-    (let [bind-impl (Symbol.prefix k 'bind)]
-      (list 'defined? bind-impl)))
+  (doc join
+    "Flattens nested monads."
+    ""
+    "```"
+    "(join (Maybe.Just (Maybe.Just 2)))"
+    "(Just 2)"
+    "```")
+  (defn join [monad-nest]
+    (bind monad-nest &id))
 
-  ;; Note that we could also define this as
-  ;; Applicative.ignore-first. This definition is the same
-  ;; as Haskell's default, however.
-  (defn replace [cx cy]
-    (bind cx &(fn [_] cy)))
+  (doc reverse-bind
+    "`bind`, with its arguments flipped."
+    ""
+    "```"
+    "(reverse-bind &(comp pure inc) (Maybe.Just 2))"
+    "=> (Maybe.Just 3)"
+    "```")
+  (defn reverse-bind [f monad]
+    (bind monad f))
 
-  (defn return [x] (lift x))
+  (doc compose
+    ("Composes two monad producing functions, `f` and `g`, using " false)
+    "`init` as initial input to `f`."
+    ""
+    "```"
+    "(the (Maybe Int) (compose &(comp pure dec) &(comp pure inc) 2))"
+    "=> (Just 2)"
+    "```")
+  (sig compose (Fn [(Ref (Fn [a] (m b))) (Ref (Fn [b] (m c))) a] (m c)))
+  (defn compose [f g init]
+    (bind (~f init) g))
 
-  (defn join [cxc]
-    (bind cxc &id))
+  (defndynamic bind-forms-internal [f functions acc]
+    (if (= 0 (length functions))
+        acc
+        (Monad.bind-forms-internal f (cdr functions)
+          (cons-last (car functions) (list f acc)))))
 
-  (defn reverse-bind [f cx]
-    (bind cx f))
+  (doc >>=
+    ("Expands into a form that sequences functions in a monadic context " false)
+    "using `bind`."
+    "```"
+    "(>>= (Maybe.Just 1)"
+    "     &(fn [x] (pure (+ 2 x)))"
+    "     &(fn [x] (pure (+ 3 x))))"
+    "=> (Just 6)"
+    "```")
+  (defmacro >>= [monad :rest functions]
+    (Monad.bind-forms-internal 'bind (cdr functions)
+      (list 'bind monad (car functions))))
 
-  (defn lift-ternary [f cx cy cz]
-    (let [x (<- cx)
-          y (<- cy)
-          z (<- cz)]
-    (return (f x y z))))
+  (doc >>
+    "Expands into a form that sequences monads, ignoring all but the last."
+    ""
+    "```"
+    "(>> (Maybe.Just 1)"
+    "    (Maybe.Just 2)"
+    "    (Maybe.Just 3))"
+    "=> (Maybe.Just 3)"
+    "```")
+  (defmacro >> [monad :rest monads]
+    (Monad.bind-forms-internal 'Applicative.ignore-first (cdr monads)
+      (list 'Applicative.ignore-first monad (car monads))))
 
-  (defn apply [cf cx]
-    (sequence cf cx))
+  (defndynamic m-do-gen-function [var bind-form body]
+    (if (or (not (symbol? (car bind-form))) (not (= '<- (car bind-form))))
+        (macro-error
+          (String.concat ["The value for binding "  (str var) " is invalid."
+                          " m-do binding values must begin with `<-`, "
+                          " [x (<- (Maybe.Just 2))]"]))
+        (list 'bind (cadr bind-form) (list 'ref (list 'fn (array var) body)))))
+
+  (defndynamic m-do-transform-bindings [bindings acc]
+    (if (empty? bindings)
+        acc
+        (Monad.m-do-transform-bindings (cddr bindings)
+          (Monad.m-do-gen-function (cadr bindings) (car bindings) acc))))
+
+  (doc m-do
+    ("\"do notation\" for monads--just like Haskell's do notation, this " false)
+    "is sugar for binding the result of monadic actions to variables."
+    ""
+    "```"
+    "(m-do [x (<- (Maybe.Just 1))"
+    "       y (<- (Maybe.Just 1))]"
+    "  (pure (+ x y)))"
+    "=> (Maybe.Just 2)"
+    "```")
+  (defmacro m-do [bindings actions]
+    (if (or (not (array? bindings))
+            (not (= 0 (- (length bindings) (* 2 (/ (length bindings) 2))))))
+        (macro-error
+          (String.concat ["m-do bindings must be contained in an array, "
+                          "which must contain an even number of "
+                          "<variable> <binding> forms, "
+                          "like `let` bindings: "
+                          "[x (<- (Maybe.Just 2)) y (<- (Maybe.Just 1))]"]))
+        (Monad.m-do-transform-bindings (reverse bindings) actions)))
 )
 
