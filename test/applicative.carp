@@ -1,55 +1,71 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+(load "typeclasses/applicative.carp")
+(load "test/box.carp")
 (load "Test.carp")
-(load "Maybe.carp")
 (use Test)
 
-(load "../typeclasses.carp")
-(use Applicative)
-
-(defmodule Maybe 
-  (defn fmap [f m] 
-    (match m
-      (Maybe.Just x) (Maybe.Just (~f x))
-      (Maybe.Nothing) (Maybe.Nothing)))
-  (defn lift [x] (Maybe.Just x))
-  (defn sequence [mf mx]
-    (match mf 
-      (Maybe.Nothing) (Maybe.Nothing)
-      (Maybe.Just f) (fmap &f mx))))
-
-(defn ref-then-slice [s x y]
-  (String.slice &s x y))
-
 (deftest test
-  (assert-equal test 
-    &(Maybe.lift 1)
-    &(Maybe.Just 1)
-    "lift works as expected")
   (assert-equal test
-    &(sequence (lift inc) (Maybe.Just 1))
-    &(Maybe.Just 2)
+    &(Box.pure 1)
+    &(Box 1)
+    "pure works as expected")
+  (assert-equal test
+    &(sequence (pure inc) (Box 1))
+    &(Box 2)
     "sequence works as expected")
   (assert-equal test
-    &(lift-unary inc (Maybe.Just 1))
-    &(Maybe.Just 2)
-    "lift-unary works as expected")
+    &(let-do [b (Box 1)] (sequence! &(pure inc) &b) b)
+    &(Box 2)
+    "sequence! works as expected")
   (assert-equal test
-    &(Maybe.Just 5)
-    &(lift-binary + (Maybe.Just 2) (Maybe.Just 3))
-    "lift-binary works as expected")
-  ;; Currently results in a runtime error.
-  ;(assert-equal test
-  ;  &(Maybe.construct (lift-ternary ref-then-slice 
-  ;    (Maybe.applicative (Maybe.Just @"foobarbaz")) 
-  ;    (Maybe.applicative (Maybe.Just 0)) 
-  ;    (Maybe.applicative (Maybe.Just 3))))
-  ;  &(Maybe.Just @"foo")
-  ;  "lift-ternary works as expected")
+    &(Applicative.lift &inc (Box 1))
+    &(Box 2)
+    "lift works as expected")
   (assert-equal test
-    &(ignore-first (lift Int.inc) (Maybe.Just 1))
-    &(Maybe.Just 1)
+    &(let-do [b (Box 1)] (Applicative.lift! &inc &b) b)
+    &(Box 2)
+    "lift! works as expected")
+  (assert-equal test
+    &(Box 5)
+    &(Applicative.bi-lift &(fn [x y] (+ @x y)) (Box 2) (Box 3))
+    "bi-lift works as expected")
+  (assert-equal test
+    &[(Box 5) (Box 3)]
+    &(let-do [b (Box 2) b2 (Box 3)]
+      (Applicative.bi-lift-first! &(fn [x y] (+ @x y)) &b &b2) [b b2])
+    "bi-lifti-first! works as expected")
+  (assert-equal test
+    &[(Box 2) (Box 5)]
+    &(let-do [b (Box 2) b2 (Box 3)]
+      (Applicative.bi-lift-second! &(fn [x y] (+ @x y)) &b &b2) [b b2])
+    "bi-lifti-second! works as expected")
+  (assert-equal test
+    &(Applicative.ignore-first (pure Int.inc) (Box 1))
+    &(Box 1)
     "ignore-first works as expected")
   (assert-equal test
-    &(ignore-second (Maybe.Just 1) (Maybe.Just 0))
-    &(Maybe.Just 1)
+    &(let-do [b (Box 1)] (Applicative.ignore-first! &(Box.pure Int.inc) &b) b)
+    &(Box 1)
+    "ignore-first! works as expected")
+  (assert-equal test
+    &(let-do [b (Box 1)] (Applicative.ignore-second! &b &(Box.pure 0)) b)
+    &(Box 1)
+    "ignore-second! works as expected")
+  (assert-equal test
+    &(Applicative.ignore-second (Box 1) (Box 0))
+    &(Box 1)
     "ignore-second works as expected")
 )
