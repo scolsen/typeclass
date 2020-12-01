@@ -1,0 +1,72 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+(load-once "instances/array.carp")
+(load "Test.carp")
+
+(use Test)
+
+(deftest test
+  (assert-equal test
+    &[0 1 2]
+    &(fmap &dec [1 2 3])
+    "fmap maps a function over an array's values")
+  (assert-equal test
+    &[0 1 2]
+    &(let-do [xs [1 2 3]] (fmap! &dec &xs) xs)
+    "fmap! maps a function over an array's values in-place")
+  (assert-equal test
+    &[0]
+    &(pure 0)
+    "pure takes a value into an array")
+  (assert-equal test
+    &[2 3 4 0 1 2]
+    &(sequence [inc dec] [1 2 3])
+    "sequence maps an array of functions over an array's values, concatenating the results")
+  (assert-equal test
+    &[1 2 3]
+    &(let-do [fs [inc dec] xs [1 2 3]] (sequence! &fs &xs) xs)
+    "sequence! maps an array of functions sequentially over an array's values in-place")
+  (assert-equal test
+    &[1 2 1 2]
+    &(bind [1 1] &(fn [x] [x 2]))
+    "bind executes computations in an array monad, concating results")
+  (assert-equal test
+    &[1 2 1 2]
+    &(let-do [xs [1 1]] (bind! &xs &(fn [x] [x 2])) xs)
+    "bind! executes computations in an array monad in-place, flexibly resizing the array")
+
+  ;; check that mutating functions are memory balanced
+  (assert-exit test
+    0
+    (fn [] (Debug.assert-balanced
+      (let-do [xs [@"foo" @"baz"]]
+        (fmap! &(fn [x] (append &x "bar")) &xs)
+        (ignore xs))))
+    "fmap! is memory balanced")
+  (assert-exit test
+    0
+    (fn [] (Debug.assert-balanced
+      (let-do [xs [@"foo" @"baz"]]
+        (sequence! &[(fn [x] (append &x "bar"))] &xs)
+        (ignore xs))))
+    "sequence! is memory balanced")
+  (assert-exit test
+    0
+    (fn [] (Debug.assert-balanced
+      (let-do [xs [@"foo" @"baz"]]
+        (bind! &xs &(fn [x] (pure (append &x "bar"))))
+        (ignore xs))))
+    "bind! is memory balanced")
+)

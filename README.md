@@ -23,7 +23,7 @@ there are *mutating* versions which irrevocably alter their arguments
 ```
 
 Which is the *mutating* variant of `fmap` and will apply its function argument
-to a structure in-place. 
+to a structure in-place.
 
 The library's function names adhere to the convention of appending a `!` to any
 interface or function that performs a mutation or alters a value in-place.
@@ -33,7 +33,7 @@ Implementations of mutating interfaces such as `fmap!` are generally expected to
 perform mutation to alter a value *in-place* and may *potentially be unsafe*.
 Contrarily, functions without the trailing `!`, such as `fmap` are "pure", are
 generally expected to have no side-effects, and are expected to copy a value or
-return an entirely new value rather than modify an argument in-place. 
+return an entirely new value rather than modify an argument in-place.
 
 ### Values and References
 
@@ -123,3 +123,4 @@ default implementations of the typeclass interfaces for some of Carp's core
 library types:
 
 - `Maybe`
+- `Array`
