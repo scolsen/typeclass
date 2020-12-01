@@ -1,0 +1,72 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+(load "instances/id.carp")
+(load "Test.carp")
+
+(use Test)
+
+(deftest test
+  (assert-equal test
+    &(Identity 2)
+    &(fmap &inc (Identity 1))
+    "fmap is function application")
+  (assert-equal test
+    &(Identity 2)
+    &(let-do [x (Identity 1)] (fmap! &inc &x) x)
+    "fmap! is function application, in-place")
+  (assert-equal test
+    &(Identity 0)
+    &(pure 0)
+    "pure takes a value into Id")
+  (assert-equal test
+    &(Identity 2)
+    &(sequence (Identity inc) (Identity 1))
+    "sequence is function application")
+  (assert-equal test
+    &(Identity 2)
+    &(let-do [x (Identity 1)] (sequence! &(Identity inc) &x) x)
+    "sequence! is function application, in-place")
+  (assert-equal test
+    &(Identity 2)
+    &(bind (Identity 1) &(comp pure inc))
+    "bind is function application")
+  (assert-equal test
+    &(Identity 2)
+    &(let-do [x (Identity 1)] (bind! &x &(comp pure inc)) x)
+    "bind! is function application, in-place")
+
+  ;; check that mutating functions are memory balanced
+  (assert-exit test
+    0
+    (fn [] (Debug.assert-balanced
+      (let-do [x (Identity @"foo")]
+        (fmap! &(fn [x] (append &x "bar")) &x)
+        (ignore x))))
+    "fmap! is memory balanced")
+  (assert-exit test
+    0
+    (fn [] (Debug.assert-balanced
+      (let-do [x (Identity @"foo")]
+        (sequence! &(Identity (fn [x] (append &x "bar"))) &x)
+        (ignore x))))
+    "sequence! is memory balanced")
+  (assert-exit test
+    0
+    (fn [] (Debug.assert-balanced
+      (let-do [x (Identity @"foo")]
+        (bind! &x &(fn [x] (pure (append &x "bar"))))
+        (ignore x))))
+    "bind! is memory balanced")
+)
