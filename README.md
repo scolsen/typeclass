@@ -116,6 +116,26 @@ these functions, a type must implement:
 - `bind` to use any *copying* style functions (not ending in `!`)
 - `bind!` to use any *mutating* style functions (ending in `!`)
 
+## Bifunctor
+
+Generic operations over bifunctors are defined in the `Bifunctor` module. To
+utilize these functions, a type must implement:
+
+- `bimap` to use any *copying* style functions (not ending in `!`)
+   satisfying the equations:
+  - identity: `(bimap id id bifunctor) === (id bifunctor)`
+  - composition: `(bimap (compose h f) (compose k g) bifunctor) === (bimap h k (bimap f g bifunctor))`
+- `bimap!` to use any *mutating* style functions (ending in `!`)
+- `left`
+  satisfying the equations:
+  - commutation: `(left (bimap f g bifunctor)) === (fmap f (left bifunctor))`
+- `right`
+  satisfying the equations:
+  - commutation: `(right (bimap f g bifunctor)) === (fmap g (right bifunctor))`
+- `product`
+  satisfying the equations:
+  - isomorphism (with left and right): `(id bifunctor) === (product (left bifunctor) (right bifunctor))`
+
 ## Instances
 
 In addition to interfaces and generic functions, this library also defines
@@ -124,3 +144,4 @@ library types:
 
 - `Maybe`
 - `Array`
+- `Pair`
