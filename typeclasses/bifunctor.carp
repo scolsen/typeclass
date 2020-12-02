@@ -1,0 +1,196 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+(load "typeclasses/functor.carp")
+(load "typeclasses/applicative.carp")
+(load "typeclasses/monad.carp")
+
+(load "instances/id.carp")
+
+(definterface bimap (Fn [(Ref (Fn [a] c)) (Ref (Fn [b] d)) (f a b)] (f c d)))
+(doc bimap
+  "Maps two functions over the components of a type with two inhabitants, describing a bifunctor."
+  "Implementations should satisfy the equations:"
+  ""
+  "```"
+  "identity: "
+  "  (bimap id id bifunctor) === (id bifunctor)"
+  "composition: "
+  "  (bimap (compose h f) (compose k g) bifunctor) === (bimap h k (bimap f g bifunctor))"
+  "```"
+  ""
+  "```"
+  "(bimap &inc &even? (Pair 2 2))"
+  "=> (Pair 3 true)"
+  "```")
+
+(definterface bimap! (Fn [(Ref (Fn [a] c)) (Ref (Fn [b] d)) (Ref (f a b))] Unit))
+(doc bimap!
+  "Maps two functions over the components of a type with two inhabitants in-place, describing a bifunctor."
+  ""
+  "```"
+  "(let-do [p (Pair 2 2)] (bimap! &inc &even? p) p)"
+  "=> (Pair 3 true)"
+  "```")
+
+(definterface left (Fn [(f a b)] (Identity a)))
+(doc left
+  "Describes a natural transformation from a bifunctor to the identity functor of its left component."
+  "Implementations should satisfy the equation:"
+  ""
+  "```"
+  "commutation:"
+  "  (left (bimap f g bifunctor)) === (fmap f (left bifunctor))"
+  "```"
+  ""
+  "```"
+  "(left (Pair 2 \a))"
+  "=> (Id 2)"
+  "```")
+
+(definterface right (Fn [(f a b)] (Identity b)))
+(doc right
+  "Describes a natural transformation from a bifunctor to the identity functor of its right component."
+  "For this to be a proper natural transformation, implementations must satisfy the equation:"
+  ""
+  "```"
+  "commutation:"
+  "  (right (bimap f g bifunctor)) === (fmap g (right bifunctor))"
+  "```"
+  ""
+  "```"
+  "(right (Pair 2 \a))"
+  "(Id \a)"
+  "```")
+
+(definterface product (Fn [(Identity a) (Identity b)] (f a b)))
+(doc product
+  "Takes a two identity functors to a bifunctor."
+  "Implementations should satisfy the equation:"
+  ""
+  "```"
+  "isomorphism (with left and right):"
+  "  (id bifunctor) === (product (left bifunctor) (right bifunctor))"
+  "```"
+  ""
+  "```"
+  "(product (Id 2) (Id \a))"
+  "(Pair 2 \a)"
+  "```")
+
+(defmodule Bifunctor
+  (doc mapl
+    "Maps a function over the left component of a bifunctor."
+    ""
+    "```"
+    "(mapl &even? (Pair 2 2))"
+    "=> (Pair true 2)"
+    "```")
+  (sig mapl (Fn [(Ref (Fn [a] c)) (f a b)] (f c b)))
+  (defn mapl [f bifunctor]
+    (bimap f &id bifunctor))
+
+  (doc mapl!
+    "Maps a function over the left component of a bifunctor, in-place."
+    ""
+    "```"
+    "(let-do [p (Pair 0 0)] (mapl! &inc &p) p)"
+    "=> (Pair 1 0)"
+    "```")
+  (defn mapl! [f bifunctor]
+    (bimap! f &id bifunctor))
+
+  (doc mapr
+    "Maps a function over the right component of a bifunctor."
+    ""
+    "```"
+    "(mapr &even? (Pair 0 1)"
+    "=> (Pair 0 false))"
+    "```")
+  (sig mapr (Fn [(Ref (Fn [b] d)) (f a b)] (f a d)))
+  (defn mapr [g bifunctor]
+    (bimap &id g bifunctor))
+
+  (doc mapr!
+    "Maps a function over the right component of a bifunctor, in-place."
+    ""
+    "```"
+    "(let-do [p (Pair 0 0)] (mapr! &inc &p) p)"
+    "=> (Pair 0 1)"
+    "```")
+  (defn mapr! [g bifunctor]
+    (bimap! &id g bifunctor))
+
+  (doc fork
+    "Takes a value to a bifunctor by mapping two functions, `f`, and `g` to the value."
+    ""
+    "```"
+    "(the (Pair Int) (fork even? odd? 2))"
+   "=> (Pair true false)"
+    "```")
+  (defn fork [f g x]
+    (product (Identity (~f x)) (Identity (~g x))))
+
+  (doc bi-sequence
+    ("Sequences functions contained in a bifunctor `fs` over " false)
+    "the left and right components of another bifunctor `xs`."
+    ""
+    "```"
+    "(bi-sequence (Pair even? odd?) (Pair 2 1))"
+    "=> (Pair true true)"
+    "```")
+  (sig bi-sequence (Fn [(f (Fn [x] z) (Fn [b] d)) (f x b)] (f z d)))
+  (defn bi-sequence [fs xs]
+    (let [fs* &fs
+          xs* &xs]
+      (product (sequence (left @fs*) (left @xs*))
+               (sequence (right fs) (right xs)))))
+
+  (doc bindl
+    ("Binds a function `f` over the left component of a bifunctor, " false)
+    "returning the bifunctor returned by `f`."
+    ""
+    "```"
+    "(bindl (Pair 0 0) &(fn [x] (Pair (even? x) 2)))"
+    "=> (Pair true 2)"
+    "```")
+  (sig bindl (Fn [(f a c) (Ref (Fn [a] (f b c)))] (f b c)))
+  (defn bindl [bi-functor f]
+    (~f @(Identity.of &(left bi-functor))))
+
+  (doc bindr
+    ("Binds a function `f` over the right component of a bifunctor, " false)
+    "returning the bifunctor returned by `f`."
+    ""
+    "```"
+    "(bindl (Pair 0 0) &(fn [x] (Pair 2 (even? x))))"
+    "=> (Pair 2 true)"
+    "```")
+  (sig bindr (Fn [(f a c) (Ref (Fn [c] (f a d)))] (f a d)))
+  (defn bindr [bi-functor f]
+    (~f @(Identity.of &(right bi-functor))))
+
+  (doc bi-bind
+    ("Binds a binary function `f` over the left and right " false)
+    "of a bifunctor, returning the bifunctor returned by `f`."
+    ""
+    "```"
+    "(bi-bind (Pair 1 1) &(fn [x y] (Pair (+ x y) (* y x))))"
+    "=> (Pair 2 1)"
+    "```")
+  (sig bi-bind (Fn [(f a b) (Ref (Fn [a b] (f c d)))] (f c d)))
+  (defn bi-bind [bi-functor f]
+    (~f @(Identity.of &(left @&bi-functor)) @(Identity.of &(right bi-functor))))
+)
+

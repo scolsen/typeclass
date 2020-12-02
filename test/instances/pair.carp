@@ -1,0 +1,62 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+(load "instances/pair.carp")
+(load "Test.carp")
+
+(use Test)
+
+(deftest test
+  (assert-equal test
+    &(Pair true false)
+    &(bimap &Int.even? &Int.odd? (Pair 2 2))
+    "bimap works as expected")
+  ;(assert-equal test
+  ;  &(Pair true false)
+  ;  &(let-do [p (Pair 2 2)] (bimap! &Int.even? &Int.odd? &p) p)
+  ;  "bimap! works as expected")
+  (assert-equal test
+    &(Identity 2)
+    &(left (Pair 2 1))
+    "left works as expected")
+  (assert-equal test
+    &(Identity 1)
+    &(right (Pair 2 1))
+    "right works as expected")
+  (assert-equal test
+    &(Pair 1 2)
+    &(product (Identity 1) (Identity 2))
+    "product works as expected")
+  ;; laws; we'll assume universal quantification
+  (assert-equal test
+    &(id (Pair 2 2))
+    &(bimap &id &id (Pair 2 2))
+    "bimap preserves identity\n\t(bimap id id pair) === (id pair)")
+  (assert-equal test
+    &(bimap &inc &inc (bimap &dec &dec (Pair 2 2)))
+    &(bimap &(comp inc dec) &(comp inc dec) (Pair 2 2))
+    "bimap preserves composition\n\t(bimap (compose h f) (compose k g) bifunctor) === (bimap h k (bimap f g bifunctor))")
+  (assert-equal test
+    &(left (bimap &inc &id (Pair 2 1)))
+    &(fmap &inc (left (Pair 2 1)))
+    "left transformation commutes\n\t(left (bimap f g bifunctor)) === (fmap f (left bifunctor))")
+  (assert-equal test
+    &(right (bimap &id &inc (Pair 2 1)))
+    &(fmap &inc (right (Pair 2 1)))
+    "right transformation commutes\n\t(right (bimap f g bifunctor)) === (fmap g (right bifunctor))")
+  (assert-equal test
+    &(id (Pair 1 2))
+    &(product (left (Pair 1 2)) (right (Pair 1 2)))
+    "product is isomorphic with left and right functors\n\t(id bifunctor) === (product (left bifunctor) (right bifunctor))")
+)
