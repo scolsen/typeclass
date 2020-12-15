@@ -21,10 +21,12 @@
     (let [l @(Pair.a &p)
           r @(Pair.b &p)]
       (Pair (~f l) (~g r))))
-  (implements left left)
+  (implements transforml left)
+  (sig left (Fn [(Pair a b)] (Identity a)))
   (defn left [p]
     (Identity @(Pair.a &p)))
-  (implements right right)
+  (implements transformr right)
+  (sig right (Fn [(Pair a b)] (Identity b)))
   (defn right [p]
     (Identity @(Pair.b &p)))
   (implements product product)

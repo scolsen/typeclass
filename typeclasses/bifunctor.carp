@@ -44,43 +44,37 @@
   "=> (Pair 3 true)"
   "```")
 
-(definterface left (Fn [(f a b)] (Identity a)))
-(doc left
-  "Describes a natural transformation from a bifunctor to the identity functor of its left component."
+(definterface transforml (Fn [(g a b)] (f a)))
+(doc transforml
+  ("Defines a natural transformation from a bifunctor's left component " false)
+  "to an arbitrary functor."
   "Implementations should satisfy the equation:"
   ""
   "```"
   "commutation:"
-  "  (left (bimap f g bifunctor)) === (fmap f (left bifunctor))"
+  "  (transforml (bimap f g bifunctor)) === (fmap f (transforml bifunctor))"
   "```"
-  ""
-  "```"
-  "(left (Pair 2 \a))"
-  "=> (Id 2)"
-  "```")
+  "")
 
-(definterface right (Fn [(f a b)] (Identity b)))
-(doc right
-  "Describes a natural transformation from a bifunctor to the identity functor of its right component."
-  "For this to be a proper natural transformation, implementations must satisfy the equation:"
+(definterface transformr (Fn [(g a b)] (f b)))
+(doc transformr
+  ("Defines a natural transformation from a bifunctor's right component " false)
+  "to an arbitrary functor."
+  "Implementations should satisfy the equation:"
   ""
   "```"
   "commutation:"
-  "  (right (bimap f g bifunctor)) === (fmap g (right bifunctor))"
+  "  (transformr (bimap f g bifunctor)) === (fmap g (transformr bifunctor))"
   "```"
-  ""
-  "```"
-  "(right (Pair 2 \a))"
-  "(Id \a)"
-  "```")
+  "")
 
-(definterface product (Fn [(Identity a) (Identity b)] (f a b)))
+(definterface product (Fn [(f a) (g b)] (h a b)))
 (doc product
-  "Takes a two identity functors to a bifunctor."
+  "Takes a two functors to a bifunctor."
   "Implementations should satisfy the equation:"
   ""
   "```"
-  "isomorphism (with left and right):"
+  "isomorphism (with transforml and transformr):"
   "  (id bifunctor) === (product (left bifunctor) (right bifunctor))"
   "```"
   ""
@@ -140,7 +134,7 @@
    "=> (Pair true false)"
     "```")
   (defn fork [f g x]
-    (product (Identity (~f x)) (Identity (~g x))))
+    (product (fmap f (pure x)) (fmap g (pure x))))
 
   (doc bi-sequence
     ("Sequences functions contained in a bifunctor `fs` over " false)
@@ -154,43 +148,20 @@
   (defn bi-sequence [fs xs]
     (let [fs* &fs
           xs* &xs]
-      (product (sequence (left @fs*) (left @xs*))
-               (sequence (right fs) (right xs)))))
-
-  (doc bindl
-    ("Binds a function `f` over the left component of a bifunctor, " false)
-    "returning the bifunctor returned by `f`."
-    ""
-    "```"
-    "(bindl (Pair 0 0) &(fn [x] (Pair (even? x) 2)))"
-    "=> (Pair true 2)"
-    "```")
-  (sig bindl (Fn [(f a c) (Ref (Fn [a] (f b c)))] (f b c)))
-  (defn bindl [bi-functor f]
-    (~f @(Identity.of &(left bi-functor))))
-
-  (doc bindr
-    ("Binds a function `f` over the right component of a bifunctor, " false)
-    "returning the bifunctor returned by `f`."
-    ""
-    "```"
-    "(bindl (Pair 0 0) &(fn [x] (Pair 2 (even? x))))"
-    "=> (Pair 2 true)"
-    "```")
-  (sig bindr (Fn [(f a c) (Ref (Fn [c] (f a d)))] (f a d)))
-  (defn bindr [bi-functor f]
-    (~f @(Identity.of &(right bi-functor))))
+      (product (sequence (transforml @fs*) (transforml @xs*))
+               (sequence (transformr fs) (transformr xs)))))
 
   (doc bi-bind
-    ("Binds a binary function `f` over the left and right " false)
-    "of a bifunctor, returning the bifunctor returned by `f`."
+    ("Binds functions `f` and `g` over the left and right components of " false)
+    "a bifunctor."
     ""
     "```"
-    "(bi-bind (Pair 1 1) &(fn [x y] (Pair (+ x y) (* y x))))"
-    "=> (Pair 2 1)"
+    "(bi-bind &(fn [_] (Identity 2)) &(fn [_] (Identity 3)) (Pair \a \b))"
+    "=> (Pair 2 3))"
     "```")
-  (sig bi-bind (Fn [(f a b) (Ref (Fn [a b] (f c d)))] (f c d)))
-  (defn bi-bind [bi-functor f]
-    (~f @(Identity.of &(left @&bi-functor)) @(Identity.of &(right bi-functor))))
+  (sig bi-bind (Fn [(Ref (Fn [a] (f b))) (Ref (Fn [c] (g d))) (h a c)] (h b d)))
+  (defn bi-bind [f g bi-functor]
+    (product (bind (transforml bi-functor) f)
+             (bind (transformr bi-functor) g)))
 )
 
