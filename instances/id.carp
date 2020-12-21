@@ -12,9 +12,9 @@
 ;;  See the License for the specific language governing permissions and
 ;;  limitations under the License.
 
-(load "typeclasses/functor.carp")
-(load "typeclasses/applicative.carp")
-(load "typeclasses/monad.carp")
+(load-once "typeclasses/functor.carp")
+(load-once"typeclasses/applicative.carp")
+(load-once "typeclasses/monad.carp")
 
 ;; N.B. For some reason, naming this `Id` causes the compiler to emit
 ;; invalid C.
@@ -25,32 +25,38 @@
   (defn = [id-a id-b]
     (= (Identity.of id-a) (Identity.of id-b)))
 
-  (implements fmap fmap)
-  (defn fmap [f id-functor]
-    (Identity.init (~f @(Identity.of &id-functor))))
-  (implements fmap! fmap!)
-  (defn fmap! [f id-functor]
-    (Identity.set-of! id-functor (~f @(Identity.of id-functor))))
+  (defmodule Functor
+    (implements fmap fmap)
+    (defn fmap [f id-functor]
+      (Identity.init (~f @(Identity.of &id-functor))))
+    (implements fmap! fmap!)
+    (defn fmap! [f id-functor]
+      (Identity.set-of! id-functor (~f @(Identity.of id-functor))))
+  )
 
-  (implements pure pure)
-  (defn pure [x] (Identity.init x))
-  (implements sequence sequence)
-  (defn sequence [id-f id-a]
-    (let [f (Identity.of &id-f)]
-      (fmap f id-a)))
-  (implements sequence! sequence!)
-  (defn sequence! [id-f id-a]
-    (let [f (Identity.of id-f)]
-      (fmap! f id-a)))
+  (defmodule Applicative
+    (implements pure pure)
+    (defn pure [x] (Identity.init x))
+    (implements sequence sequence)
+    (defn sequence [id-f id-a]
+      (let [f (Identity.of &id-f)]
+        (fmap f id-a)))
+    (implements sequence! sequence!)
+    (defn sequence! [id-f id-a]
+      (let [f (Identity.of id-f)]
+        (fmap! f id-a)))
+  )
 
-  (implements bind bind)
-  (sig bind (Fn [(Identity a) (Ref (Fn [a] (Identity b)))] (Identity b)))
-  (defn bind [id-m f]
-    (let [v @(Identity.of &id-m)]
-      (~f v)))
-  (implements bind! bind!)
-  (defn bind! [id-m f]
-    (let [id-m* (the (Ptr (Identity a)) (Unsafe.coerce id-m))
-          _ (Pointer.to-value id-m*)]
-      (Pointer.set id-m* (~f @(Identity.of id-m)))))
+  (defmodule Monad
+    (implements bind bind)
+    (sig Identity.bind (Fn [(Identity a) (Ref (Fn [a] (Identity b)))] (Identity b)))
+    (defn bind [id-m f]
+      (let [v @(Identity.of &id-m)]
+        (~f v)))
+    (implements bind! bind!)
+    (defn bind! [id-m f]
+      (let [id-m* (the (Ptr (Identity a)) (Unsafe.coerce id-m))
+            _ (Pointer.to-value id-m*)]
+        (Pointer.set id-m* (~f @(Identity.of id-m)))))
+  )
 )
