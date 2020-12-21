@@ -1,0 +1,73 @@
+;; Copyright 2020 Google LLC
+;;
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;  https://www.apache.org/licenses/LICENSE-2.0
+;;
+;;  Unless required by applicable law or agreed to in writing, software
+;;  distributed under the License is distributed on an "AS IS" BASIS,
+;;  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;  See the License for the specific language governing permissions and
+;;  limitations under the License.
+
+(load "typeclasses/bifunctor.carp")
+
+(defmodule Result
+  (defmodule Bifunctor
+    (implements bimap bimap)
+    (doc bimap 
+      "Maps the function `f` over the success value of a Result."
+      "Maps the function `g` over the error value of a Result.")
+    (defn bimap [f g r]
+      (match r
+             (Result.Success s) (Result.Success (~f s))
+             (Result.Error e) (Result.Error (~g e))))
+
+    (implements transforml transforml)
+    (doc transforml 
+      ("Defines a natural transformation from a Result's success type " false)
+      "to the Maybe functor."
+      ""
+      "```"
+      "(transforml (Result.Success 2))"
+      "=> (Just 2)"
+      "(transforml (Result.Error 1))"
+      "=> (Nothing)"
+      "```")
+    (sig transforml (Fn [(Result a b)] (Maybe a)))
+    (defn transforml [result]
+      (match result 
+        (Result.Success s) (Maybe.Just s)
+        _ (Maybe.Nothing)))
+
+    (implements transformr transformr)
+    (doc transformr 
+      ("Defines a natural transformation from a Result's error type " false)
+      "to the Maybe functor."
+      ""
+      "```"
+      "(transformr (Result.Error 1))"
+      "=> (Just 1)"
+      "(transformr (Result.Success 2))"
+      "=> (Nothing)"
+      "```")
+    (sig transformr (Fn [(Result a b)] (Maybe b)))
+    (defn transformr [result]
+      (match result 
+        (Result.Error e) (Maybe.Just e)
+        _ (Maybe.Nothing)))
+
+    (implements product product)
+    (doc product 
+      "Takes two Maybe functors into the Result bifunctor.")
+    (defn product [l r]
+      (match l
+        (Maybe.Just x) (Result.Success x)
+        (Maybe.Nothing) 
+          (match r
+            (Maybe.Just y) (Result.Error y)
+            (Maybe.Nothing) (Result.Error (zero)))))
+  )
+)
