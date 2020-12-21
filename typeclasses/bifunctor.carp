@@ -161,7 +161,8 @@
     "```")
   (sig bi-bind (Fn [(Ref (Fn [a] (f b))) (Ref (Fn [c] (g d))) (h a c)] (h b d)))
   (defn bi-bind [f g bi-functor]
-    (product (bind (transforml bi-functor) f)
-             (bind (transformr bi-functor) g)))
+    (let [bi-functor* &bi-functor]
+      (product (bind (transforml @bi-functor*) f)
+               (bind (transformr bi-functor) g))))
 )
 
