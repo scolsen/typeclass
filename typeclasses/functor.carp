@@ -14,7 +14,15 @@
 
 (definterface fmap (Fn [(Ref (Fn [a] b)) (f a)] (f b)))
 (doc fmap
-  "Maps a function over the inhabitants of a unary type constructor.")
+  "Maps a function over the inhabitants of a unary type constructor."
+  "Implementations should satisfy the equations:"
+  ""
+  "```"
+  "identity:"
+  "  (fmap &id functor) === (id functor)"
+  "composition:"
+  "  (fmap &(comp inc dec) functor) === (fmap &inc (fmap &dec functor))"
+  "```")
 
 (definterface fmap! (Fn [(Ref (Fn [a] a)) (Ref (f a))] Unit))
 (doc fmap!
